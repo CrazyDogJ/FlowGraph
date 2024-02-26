@@ -712,7 +712,8 @@ void UFlowNode::ForceFinishNode()
 void UFlowNode::ResetRecords()
 {
 	ActivationState = EFlowNodeState::NeverActivated;
-
+	K2_OnNodeReset();
+	
 #if !UE_BUILD_SHIPPING
 	InputRecords.Empty();
 	OutputRecords.Empty();

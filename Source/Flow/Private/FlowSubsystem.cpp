@@ -76,13 +76,15 @@ void UFlowSubsystem::AbortActiveFlows()
 	RootInstances.Empty();
 }
 
-void UFlowSubsystem::StartRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const bool bAllowMultipleInstances /* = true */)
+UFlowAsset* UFlowSubsystem::StartRootFlow(UObject* Owner, UFlowAsset* FlowAsset,
+                                          const bool bAllowMultipleInstances /* = true */)
 {
 	if (FlowAsset)
 	{
 		if (UFlowAsset* NewFlow = CreateRootFlow(Owner, FlowAsset, bAllowMultipleInstances))
 		{
 			NewFlow->StartFlow();
+			return NewFlow;
 		}
 	}
 #if WITH_EDITOR
@@ -92,6 +94,7 @@ void UFlowSubsystem::StartRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const 
 		                  ->AddToken(FUObjectToken::Create(Owner));
 	}
 #endif
+	return nullptr;
 }
 
 UFlowAsset* UFlowSubsystem::CreateRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const bool bAllowMultipleInstances)

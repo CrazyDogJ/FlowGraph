@@ -264,6 +264,7 @@ protected:
 	EFlowNodeState ActivationState;
 
 public:
+	UFUNCTION(BlueprintPure)
 	EFlowNodeState GetActivationState() const { return ActivationState; }
 
 #if !UE_BUILD_SHIPPING
@@ -317,6 +318,10 @@ protected:
 	// Event reacting on triggering Input pin
 	UFUNCTION(BlueprintImplementableEvent, Category = "FlowNode", meta = (DisplayName = "Execute Input"))
 	void K2_ExecuteInput(const FName& PinName);
+
+	// Event that called when node reset
+	UFUNCTION(BlueprintImplementableEvent, Category = "FlowNode", meta = (DisplayName = "On Node Reset"))
+	void K2_OnNodeReset();
 
 	// Simply trigger the first Output Pin, convenient to use if node has only one output
 	UFUNCTION(BlueprintCallable, Category = "FlowNode")

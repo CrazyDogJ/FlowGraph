@@ -28,12 +28,12 @@ struct FLOW_API FFlowAssetSaveData
 {
 	GENERATED_USTRUCT_BODY()
 
-	UPROPERTY(SaveGame, VisibleAnywhere, Category = "Flow")
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Flow")
 	FString WorldName;
 
-	UPROPERTY(SaveGame, VisibleAnywhere, Category = "Flow")
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Flow")
 	FString InstanceName;
-
+	
 	UPROPERTY(SaveGame, VisibleAnywhere, Category = "Flow")
 	TArray<uint8> AssetData;
 
