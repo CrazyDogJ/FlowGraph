@@ -21,6 +21,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow")
 	TMap<FName, FText> Options;
 
+	UFUNCTION(BlueprintPure, Category = "Flow")
+	bool HasOptions() const;
+	
 	virtual void OnLoad_Implementation() override;
 
 public:

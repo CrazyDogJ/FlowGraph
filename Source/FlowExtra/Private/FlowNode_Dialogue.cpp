@@ -9,6 +9,11 @@ UFlowNode_Dialogue::UFlowNode_Dialogue(const FObjectInitializer& ObjectInitializ
 	OutputPins = { DefaultOutputPin };
 }
 
+bool UFlowNode_Dialogue::HasOptions() const
+{
+	return Options.Num() > 0;
+}
+
 void UFlowNode_Dialogue::OnLoad_Implementation()
 {
 	Super::OnLoad_Implementation();
