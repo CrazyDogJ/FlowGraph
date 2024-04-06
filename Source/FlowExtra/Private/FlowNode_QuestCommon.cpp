@@ -28,6 +28,33 @@ void UFlowNode_QuestCommon::OnLoad_Implementation()
 	K2_OnActivate();
 }
 
+void UFlowNode_QuestCommon::ObserveActor(TWeakObjectPtr<AActor> Actor, TWeakObjectPtr<UFlowComponent> Component)
+{
+	bool bContain = true;
+	if (!RegisteredActors.Contains(Actor))
+	{
+		bContain = false;
+	}
+	
+	Super::ObserveActor(Actor, Component);
+
+	if (RegisteredActors.Contains(Actor) && !bContain)
+	{
+		K2_HasAnyGoalActors();
+	}
+}
+
+void UFlowNode_QuestCommon::ForgetActor(TWeakObjectPtr<AActor> Actor, TWeakObjectPtr<UFlowComponent> Component)
+{
+	Super::ForgetActor(Actor, Component);
+	
+	if (!RegisteredActors.Contains(Actor))
+	{
+		K2_HasNoGoalActors();
+	}
+}
+
+#if WITH_EDITOR
 FString UFlowNode_QuestCommon::GetNodeDescription() const
 {
 	FString MapPinInfo;
@@ -45,3 +72,4 @@ FString UFlowNode_QuestCommon::GetNodeDescription() const
 	}
 	return Super::GetNodeDescription() + LINE_TERMINATOR + MapPinInfo + LINE_TERMINATOR + K2_GetNodeDescription();
 }
+#endif

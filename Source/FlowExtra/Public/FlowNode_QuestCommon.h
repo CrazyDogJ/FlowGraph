@@ -15,13 +15,13 @@ class FLOWEXTRA_API UFlowNode_QuestCommon : public UFlowNode_OnNotifyFromActor
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Quest, meta=(EditCondition="!bUseStaticLocation"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Quest)
 	FGameplayTagContainer MapPinActorIdentifyTags;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Quest)
 	bool bUseStaticLocation = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Quest, meta=(EditCondition="bUseStaticLocation"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Quest)
 	TArray<FVector> StaticQuestGoalLocation;
 
 	virtual void OnEventReceived() override;
@@ -31,10 +31,19 @@ public:
 	
 	UFUNCTION(BlueprintImplementableEvent, Category=Quest, DisplayName=OnCompleted)
     void K2_OnEventCompleted();
+
+	UFUNCTION(BlueprintImplementableEvent, Category=Quest, DisplayName=HasAnyGoalActors)
+	void K2_HasAnyGoalActors();
+
+	UFUNCTION(BlueprintImplementableEvent, Category=Quest, DisplayName=HasNoGoalActors)
+	void K2_HasNoGoalActors();
 	
 	virtual void Cleanup() override;
 
 	virtual void OnLoad_Implementation() override;
+
+	virtual void ObserveActor(TWeakObjectPtr<AActor> Actor, TWeakObjectPtr<UFlowComponent> Component) override;
+	virtual void ForgetActor(TWeakObjectPtr<AActor> Actor, TWeakObjectPtr<UFlowComponent> Component) override;
 	
 #if WITH_EDITOR
 public:

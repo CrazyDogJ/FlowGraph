@@ -10,7 +10,6 @@ public class FlowEditor : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new[]
 		{
-			"EditorSubsystem",
 			"Flow",
 			"MessageLog"
 		});
@@ -27,6 +26,7 @@ public class FlowEditor : ModuleRules
 			"CoreUObject",
 			"DetailCustomizations",
 			"DeveloperSettings",
+			"EditorSubsystem",
 			"EditorFramework",
 			"EditorScriptingUtilities",
 			"EditorStyle",

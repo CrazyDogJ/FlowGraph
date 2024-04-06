@@ -15,7 +15,7 @@ class FLOWEXTRA_API UFlowNode_Dialogue : public UFlowNode_NotifySpecificActor
 	GENERATED_UCLASS_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow", meta = (Multiline = "true"))
 	FText Text;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow")
@@ -27,10 +27,9 @@ public:
 	virtual void OnLoad_Implementation() override;
 
 public:
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-
 #if WITH_EDITOR
-public:
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	
 	virtual FString GetNodeDescription() const override;
 #endif
 };
