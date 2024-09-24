@@ -18,3 +18,12 @@ void UFlowExtraFunctionLibrary::SaveSpecificFlowAsset(UFlowSaveGame* SaveGame, U
 		FlowAsset->SaveInstance(SaveGame->FlowInstances);
 	}
 }
+
+UFlowAsset* UFlowExtraFunctionLibrary::GetTemplateAssetFromInstance(UFlowAsset* Instance)
+{
+	if (Instance)
+	{
+		return Instance->GetTemplateAsset();
+	}
+	return nullptr;
+}

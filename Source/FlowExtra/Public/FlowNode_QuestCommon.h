@@ -24,6 +24,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Quest)
 	TArray<FVector> StaticQuestGoalLocation;
 
+	UPROPERTY(BlueprintReadWrite, Category=Quest)
+	bool bGoalActivated;
+
+	UPROPERTY(BlueprintReadWrite, Category=Quest)
+	bool bGoalFinished;
+
+	virtual void ExecuteInput(const FName& PinName) override;
+	
 	virtual void OnEventReceived() override;
 
 	UFUNCTION(BlueprintImplementableEvent, Category=Quest, DisplayName=OnReceived)
@@ -44,6 +52,12 @@ public:
 
 	virtual void ObserveActor(TWeakObjectPtr<AActor> Actor, TWeakObjectPtr<UFlowComponent> Component) override;
 	virtual void ForgetActor(TWeakObjectPtr<AActor> Actor, TWeakObjectPtr<UFlowComponent> Component) override;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Notify")
+	FGameplayTagContainer GetNotifyTags();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Notify")
+	FGameplayTagContainer GetIdentityTags();
 	
 #if WITH_EDITOR
 public:

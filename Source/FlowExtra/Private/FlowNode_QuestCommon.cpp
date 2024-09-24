@@ -3,6 +3,27 @@
 
 #include "FlowNode_QuestCommon.h"
 
+void UFlowNode_QuestCommon::ExecuteInput(const FName& PinName)
+{
+	if (IdentityTags.IsValid())
+	{
+		if (PinName == TEXT("Start"))
+		{
+			StartObserving();
+			bGoalActivated = true;
+		}
+		else if (PinName == TEXT("Stop"))
+		{
+			bGoalActivated = false;
+		}
+		K2_ExecuteInput(PinName);
+	}
+	else
+	{
+		LogError(MissingIdentityTag);
+	}
+}
+
 void UFlowNode_QuestCommon::OnEventReceived()
 {
 	K2_OnEventReceived();
@@ -52,6 +73,16 @@ void UFlowNode_QuestCommon::ForgetActor(TWeakObjectPtr<AActor> Actor, TWeakObjec
 	{
 		K2_HasNoGoalActors();
 	}
+}
+
+FGameplayTagContainer UFlowNode_QuestCommon::GetNotifyTags()
+{
+	return NotifyTags;
+}
+
+FGameplayTagContainer UFlowNode_QuestCommon::GetIdentityTags()
+{
+	return IdentityTags;
 }
 
 #if WITH_EDITOR

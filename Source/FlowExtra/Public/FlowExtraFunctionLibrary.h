@@ -20,4 +20,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = Flow)
 	static void SaveSpecificFlowAsset(UFlowSaveGame* SaveGame, UFlowAsset* FlowAsset);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = Flow)
+	static UFlowAsset* GetTemplateAssetFromInstance(UFlowAsset* Instance);
 };
