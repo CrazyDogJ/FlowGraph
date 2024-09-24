@@ -1,18 +1,19 @@
 {
-	"FileVersion": 3,
-	"Version": 1.6,
-	"FriendlyName": "Flow",
-	"Description": "Design-agnostic node editor for scripting game’s flow.",
-	"Category": "Gameplay",
-	"CreatedByURL": "https://github.com/MothCocoon/FlowGraph/graphs/contributors",
-	"DocsURL": "https://github.com/MothCocoon/FlowGraph/wiki",
-	"MarketplaceURL": "",
-	"SupportURL": "https://discord.gg/zMtMQ2vUUa",
-	"EnabledByDefault": true,
-	"CanContainContent": false,
-	"IsBetaVersion": false,
-	"Installed": false,
-	"Modules": [
+	"FileVersion" : 3,
+	"Version" : 2.0,
+	"FriendlyName" : "Flow",
+	"Description" : "Design-agnostic node editor for scripting game’s flow.",
+	"Category" : "Gameplay",
+	"CreatedByURL" : "https://github.com/MothCocoon/FlowGraph/graphs/contributors",
+	"DocsURL" : "https://github.com/MothCocoon/FlowGraph/wiki",
+	"MarketplaceURL" : "",
+	"SupportURL": "https://discord.gg/Xmtr6GhbmW",
+	"EnabledByDefault" : true,
+	"CanContainContent" : false,
+	"IsBetaVersion" : false,
+	"Installed" : false,
+	"Modules" :
+	[
 		{
 			"Name": "Flow",
 			"Type": "Runtime",
@@ -21,7 +22,7 @@
 		{
 			"Name": "FlowEditor",
 			"Type": "Editor",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "PreDefault"
 		},
 		{
 			"Name": "FlowExtra",

@@ -7,7 +7,7 @@
 
 #include "FlowSave.h"
 #include "FlowTypes.h"
-#include "FlowOwnerInterface.h"
+#include "Interfaces/FlowOwnerInterface.h"
 #include "FlowComponent.generated.h"
 
 class UFlowAsset;
@@ -84,7 +84,8 @@ public:
 protected:
 	void RegisterWithFlowSubsystem();
 	void UnregisterWithFlowSubsystem();
-	
+	virtual void BeginRootFlow(bool bComponentLoadedFromSaveGame);
+
 private:
 	UFUNCTION()
 	void OnRep_AddedIdentityTags();
@@ -117,12 +118,12 @@ public:
 	const FGameplayTagContainer& GetRecentlySentNotifyTags() const { return RecentlySentNotifyTags; }
 
 	// Send single notification from the actor to Flow graphs
-	// If set on server, it always going to be replicated to clients
+	// If set on server, it's always going to be replicated to clients
 	UFUNCTION(BlueprintCallable, Category = "Flow")
 	void NotifyGraph(const FGameplayTag NotifyTag, const EFlowNetMode NetMode = EFlowNetMode::Authority);
 
 	// Send multiple notifications at once - from the actor to Flow graphs
-	// If set on server, it always going to be replicated to clients
+	// If set on server, it's always going to be replicated to clients
 	UFUNCTION(BlueprintCallable, Category = "Flow")
 	void BulkNotifyGraph(const FGameplayTagContainer NotifyTags, const EFlowNetMode NetMode = EFlowNetMode::Authority);
 

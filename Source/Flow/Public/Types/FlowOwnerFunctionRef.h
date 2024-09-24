@@ -2,10 +2,12 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include "Templates/SubclassOf.h"
 
 #include "FlowOwnerFunctionRef.generated.h"
 
+// Forward Declarations
 class UFlowOwnerFunctionParams;
 class IFlowOwnerInterface;
 

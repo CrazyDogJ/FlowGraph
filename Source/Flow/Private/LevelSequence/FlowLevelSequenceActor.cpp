@@ -3,6 +3,7 @@
 #include "LevelSequence/FlowLevelSequenceActor.h"
 #include "LevelSequence/FlowLevelSequencePlayer.h"
 #include "Net/UnrealNetwork.h"
+#include "Runtime/Launch/Resources/Version.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(FlowLevelSequenceActor)
 
@@ -22,7 +23,11 @@ void AFlowLevelSequenceActor::GetLifetimeReplicatedProps(TArray<FLifetimePropert
 void AFlowLevelSequenceActor::SetPlaybackSettings(FMovieSceneSequencePlaybackSettings NewPlaybackSettings)
 {
 	PlaybackSettings = NewPlaybackSettings;
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION > 3
+	GetSequencePlayer()->SetPlaybackSettings(PlaybackSettings);
+#else
 	SequencePlayer->SetPlaybackSettings(PlaybackSettings);
+#endif
 }
 
 void AFlowLevelSequenceActor::SetReplicatedLevelSequenceAsset(ULevelSequence* Asset)

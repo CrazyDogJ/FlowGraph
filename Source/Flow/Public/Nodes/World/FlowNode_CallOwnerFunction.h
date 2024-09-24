@@ -2,7 +2,9 @@
 
 #pragma once
 
-#include "FlowOwnerFunctionRef.h"
+#include "GameplayTagContainer.h"
+
+#include "Types/FlowOwnerFunctionRef.h"
 #include "Nodes/FlowNode.h"
 
 #include "FlowNode_CallOwnerFunction.generated.h"
@@ -24,59 +26,55 @@ class FLOW_API UFlowNode_CallOwnerFunction : public UFlowNode
 {
 	GENERATED_UCLASS_BODY()
 
+public:
+
+#if WITH_EDITOR
+	// UObject
+	virtual void PostLoad() override;
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+	// --
+
+	// UFlowNode
+	virtual FText GetNodeTitle() const override;
+	virtual EDataValidationResult ValidateNode() override;
+
+	virtual FString GetStatusString() const override;
+	// --
+#endif // WITH_EDITOR
+
+	UClass* GetRequiredParamsClass() const;
+	UClass* GetExistingParamsClass() const;
+
+	bool IsAcceptableParamsPropertyClass(const UClass* ParamsClass) const;
+
+	UClass* TryGetExpectedOwnerClass() const;
+
+	static bool DoesFunctionHaveValidFlowOwnerFunctionSignature(const UFunction& Function);
+
+	static UClass* GetParamsClassForFunctionName(const UClass& ExpectedOwnerClass, const FName& FunctionName);
+	static UClass* GetParamsClassForFunction(const UFunction& Function);
+
+protected:
+	// UFlowNode
+	virtual void ExecuteInput(const FName& PinName) override;
+	// --
+
+	bool ShouldFinishForOutputName(const FName& OutputName) const;
+	bool TryExecuteOutputPin(const FName& OutputName);
+
+	bool TryAllocateParamsInstance();
+
+	// Helper function for DoesFunctionHaveValidFlowOwnerFunctionSignature()
+	static bool DoesFunctionHaveNameReturnType(const UFunction& Function);
+
 protected:
 	// Function reference on the expected owner to call
-	UPROPERTY(EditAnywhere, Category = "Call Owner", meta = (DisplayName = "Function"))
+	// DEPRECATED - Sunsetting this feature from FlowGraph with the next release.  Custom FlowNodes are a better mechanism to use
+	UPROPERTY(EditAnywhere, Category = "Call Owner", meta = (DisplayName = "DEPRECATED - Function"))
 	FFlowOwnerFunctionRef FunctionRef;
 
 	// Parameter object to pass to the function when called
 	UPROPERTY(EditAnywhere, Category = "Call Owner", Instanced)
 	UFlowOwnerFunctionParams* Params;
-
-protected:
-	// UFlowNode
-	virtual void ExecuteInput(const FName& PinName) override;
-	// ---
-
-	bool TryExecuteOutputPin(const FName& OutputName);
-	bool ShouldFinishForOutputName(const FName& OutputName) const;
-
-#if WITH_EDITOR
-
-public:
-	// UFlowNode
-	virtual FText GetNodeTitle() const override;
-	virtual FString GetStatusString() const override;
-	virtual EDataValidationResult ValidateNode() override;
-	// ---
-
-	// UObject
-	virtual void PostLoad() override;
-	virtual bool CanEditChange(const FProperty* InProperty) const override;
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-	// ---
-
-protected:
-	bool TryAllocateParamsInstance();
-	void OnChangedParamsObject();
-
-	// returns true if the InOutPins array was rebuilt
-	bool RebuildPinArray(const TArray<FName>& NewPinNames, TArray<FFlowPin>& InOutPins, const FFlowPin& DefaultPin);
-
-	UClass* GetRequiredParamsClass() const;
-	UClass* GetExistingParamsClass() const;
-
-	static UClass* GetParamsClassForFunctionName(const UClass& ExpectedOwnerClass, const FName& FunctionName);
-	static UClass* GetParamsClassForFunction(const UFunction& Function);
-
-public:
-	bool IsAcceptableParamsPropertyClass(const UClass* ParamsClass) const;
-
-	UClass* TryGetExpectedOwnerClass() const;
-	static bool DoesFunctionHaveValidFlowOwnerFunctionSignature(const UFunction& Function);
-
-protected:
-	// Helper function for DoesFunctionHaveValidFlowOwnerFunctionSignature()
-	static bool DoesFunctionHaveNameReturnType(const UFunction& Function);
-#endif // WITH_EDITOR
 };

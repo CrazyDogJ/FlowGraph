@@ -97,7 +97,7 @@ UFlowAsset* UFlowSubsystem::StartRootFlow(UObject* Owner, UFlowAsset* FlowAsset,
 	return nullptr;
 }
 
-UFlowAsset* UFlowSubsystem::CreateRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const bool bAllowMultipleInstances)
+UFlowAsset* UFlowSubsystem::CreateRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const bool bAllowMultipleInstances, FString NewInstanceName)
 {
 	for (const TPair<UFlowAsset*, TWeakObjectPtr<UObject>>& RootInstance : RootInstances)
 	{
@@ -114,7 +114,7 @@ UFlowAsset* UFlowSubsystem::CreateRootFlow(UObject* Owner, UFlowAsset* FlowAsset
 		return nullptr;
 	}
 
-	UFlowAsset* NewFlow = CreateFlowInstance(Owner, FlowAsset);
+	UFlowAsset* NewFlow = CreateFlowInstance(Owner, FlowAsset, NewInstanceName);
 	if (NewFlow)
 	{
 		RootInstances.Add(NewFlow, Owner);
