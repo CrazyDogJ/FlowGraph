@@ -16,7 +16,7 @@ void UFlowNode_QuestCommon::ExecuteInput(const FName& PinName)
 		{
 			bGoalActivated = false;
 		}
-		K2_ExecuteInput(PinName);
+		Execute_K2_ExecuteInput(Cast<UObject>(this), PinName);
 	}
 	else
 	{

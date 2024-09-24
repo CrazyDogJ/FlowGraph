@@ -27,7 +27,7 @@ void UFlowNode_NotifySpecificActor::ExecuteInput(const FName& PinName)
 	{
 		TriggerOutput(TEXT("Stopped"), true);
 	}
-	K2_ExecuteInput(PinName);
+	Execute_K2_ExecuteInput(Cast<UObject>(this), PinName);
 }
 
 void UFlowNode_NotifySpecificActor::StartObserving()
