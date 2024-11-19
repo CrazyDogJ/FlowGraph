@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FlowNode_Dialogue.h"
+#include "FlowNode_Dialogue_Start.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "FlowExtraFunctionLibrary.generated.h"
 
@@ -23,4 +25,13 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = Flow)
 	static UFlowAsset* GetTemplateAssetFromInstance(UFlowAsset* Instance);
+
+	UFUNCTION(BlueprintCallable, Category = Flow)
+	static UFlowNode_Dialogue* GetCurrentDialogueNode(UObject* DialogueFlowOwner);
+	
+	UFUNCTION(BlueprintCallable, Category = Flow)
+	static void NotifyDialogueNode(int Index, UObject* FlowOwner);
+
+	UFUNCTION(BlueprintCallable, Category = Flow)
+	static UFlowNode_Dialogue_Start* GetCurrentDialogueInfos(UFlowAsset* FlowInstance);
 };

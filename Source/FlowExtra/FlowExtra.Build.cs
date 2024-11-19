@@ -9,7 +9,7 @@ public class FlowExtra : ModuleRules
         PublicDependencyModuleNames.AddRange(
             new string[]
             {
-                "Core",
+                "Core"
             }
         );
 
@@ -21,7 +21,8 @@ public class FlowExtra : ModuleRules
                 "Slate",
                 "SlateCore",
                 "Flow",
-                "GameplayTags"
+                "GameplayTags",
+                "UMG"
             }
         );
     }

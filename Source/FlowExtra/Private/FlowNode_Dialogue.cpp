@@ -3,10 +3,27 @@
 
 #include "FlowNode_Dialogue.h"
 
+#include "DialogueComponent_Base.h"
+#include "FlowExtraFunctionLibrary.h"
+
 UFlowNode_Dialogue::UFlowNode_Dialogue(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	OutputPins = { DefaultOutputPin };
+}
+
+void UFlowNode_Dialogue::ContinueDialogue_Implementation(int SelectionIndex)
+{
+	if (HasOptions() && SelectionIndex >= 0)
+	{
+		TArray<FName> OptionsKeys;
+		Options.GenerateKeyArray(OptionsKeys);
+		TriggerOutput(OptionsKeys[SelectionIndex], true);
+	}
+	else
+	{
+		TriggerFirstOutput(true);
+	}
 }
 
 bool UFlowNode_Dialogue::HasOptions() const
@@ -14,11 +31,43 @@ bool UFlowNode_Dialogue::HasOptions() const
 	return Options.Num() > 0;
 }
 
-void UFlowNode_Dialogue::OnLoad_Implementation()
+void UFlowNode_Dialogue::ExecuteInput(const FName& PinName)
 {
-	Super::OnLoad_Implementation();
+	if (DialogueCameraCalculation)
+	{
+		DialogueCameraCalculation->InstanceDialogueNode = this;
+		DialogueCameraCalculation->SetupVariables();
+	}
 
-	StartObserving();
+	auto StartNode = UFlowExtraFunctionLibrary::GetCurrentDialogueInfos(GetFlowAsset());
+	for (auto Actor : StartNode->GetIdentityActors())
+	{
+		if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
+		{
+			Comp->OnDialogueNodeStart.Broadcast(this);
+		}
+	}
+	
+	Super::ExecuteInput(PinName);
+}
+
+void UFlowNode_Dialogue::Finish()
+{
+	if (DialogueCameraCalculation)
+	{
+		DialogueCameraCalculation->ClearCamera();
+	}
+
+	auto StartNode = UFlowExtraFunctionLibrary::GetCurrentDialogueInfos(GetFlowAsset());
+	for (auto Actor : StartNode->GetIdentityActors())
+	{
+		if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
+		{
+			Comp->OnDialogueNodeEnd.Broadcast(this);
+		}
+	}
+	
+	Super::Finish();
 }
 
 #if WITH_EDITOR
@@ -49,6 +98,6 @@ void UFlowNode_Dialogue::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 
 FString UFlowNode_Dialogue::GetNodeDescription() const
 {
-	return GetNotifyTagsDescription(NotifyTags) + LINE_TERMINATOR + Text.ToString() + LINE_TERMINATOR + K2_GetNodeDescription();
+	return Text.ToString() + LINE_TERMINATOR + K2_GetNodeDescription();
 }
 #endif
