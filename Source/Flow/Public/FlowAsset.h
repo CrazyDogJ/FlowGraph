@@ -39,6 +39,36 @@ DECLARE_DELEGATE(FFlowGraphEvent);
 
 #endif
 
+// Working Data struct for the Harvest Data Pins operation
+// (passed between functions involved in the harvesting operation to simplify the function signatures)
+struct FFlowHarvestDataPinsWorkingData
+{
+	FFlowHarvestDataPinsWorkingData(UFlowNode& InFlowNode, const TMap<FName, FName>& PinNameMapPrev, const TArray<FFlowPin>& InputPinsPrev, const TArray<FFlowPin>& OutputPinsPrev)
+		: FlowNode(&InFlowNode)
+		, PinNameToBoundPropertyNameMapPrev(PinNameMapPrev)
+		, AutoInputDataPinsPrev(InputPinsPrev)
+		, AutoOutputDataPinsPrev(OutputPinsPrev)
+		{ }
+
+#if WITH_EDITOR
+	bool DidPinNameToBoundPropertyNameMapChange() const;
+	bool DidAutoInputDataPinsChange() const;
+	bool DidAutoOutputDataPinsChange() const;
+#endif
+
+	UFlowNode* FlowNode = nullptr;
+
+	const TMap<FName, FName>& PinNameToBoundPropertyNameMapPrev;
+	const TArray<FFlowPin>& AutoInputDataPinsPrev;
+	const TArray<FFlowPin>& AutoOutputDataPinsPrev;
+	
+	TMap<FName, FName> PinNameToBoundPropertyNameMapNext;
+	TArray<FFlowPin> AutoInputDataPinsNext;
+	TArray<FFlowPin> AutoOutputDataPinsNext;
+
+	bool bPinNameMapChanged = false;
+};
+
 /**
  * Single asset containing flow nodes.
  */
@@ -159,8 +189,28 @@ public:
 
 	// Processes all nodes and creates map of all pin connections
 	void HarvestNodeConnections();
+
+	// Updates the auto-generated pins and bindings for a given FlowNode,
+	// returns true if any changes were made.
+	bool TryUpdateManagedFlowPinsForNode(UFlowNode& FlowNode);
+
+protected:
+	void AddDataPinPropertyBindingToMap(
+		const FName& PinAuthoredName,
+		const FName& PropertyAuthoredName,
+		FFlowHarvestDataPinsWorkingData& InOutData);
+	virtual bool TryCreateFlowDataPinFromMetadataValue(
+		const FString& MetadataValue,
+		UFlowNode& FlowNode,
+		const FProperty& Property,
+		const FText& PinDisplayName,
+		const bool bIsInputPin,
+		TArray<FFlowPin>* InOutDataPinsNext) const;
+
+	void HarvestFlowPinMetadataForProperty(const FProperty* Property, FFlowHarvestDataPinsWorkingData& InOutData);
 #endif
 
+public:
 	const TMap<FGuid, UFlowNode*>& GetNodes() const { return Nodes; }
 	UFlowNode* GetNode(const FGuid& Guid) const { return Nodes.FindRef(Guid); }
 
@@ -206,7 +256,7 @@ protected:
 			OutNodes.Emplace(NodeOfRequiredType);
 		}
 
-		for (UFlowNode* ConnectedNode : Node->GetConnectedNodes())
+		for (UFlowNode* ConnectedNode : Node->GatherConnectedNodes())
 		{
 			if (ConnectedNode && !IteratedNodes.Contains(ConnectedNode))
 			{
@@ -337,12 +387,12 @@ public:
 	virtual void PreloadNodes() {}
 
 	virtual void PreStartFlow();
-	virtual void StartFlow();
+	virtual void StartFlow(IFlowDataPinValueSupplierInterface* DataPinValueSupplier = nullptr);
 
 	virtual void FinishFlow(const EFlowFinishPolicy InFinishPolicy, const bool bRemoveInstance = true);
 
 	bool HasStartedFlow() const;
-	void TriggerCustomInput(const FName& EventName);
+	void TriggerCustomInput(const FName& EventName, IFlowDataPinValueSupplierInterface* DataPinValueSupplier = nullptr);
 
 	// Get Flow Asset instance created by the given SubGraph node
 	TWeakObjectPtr<UFlowAsset> GetFlowInstance(UFlowNode_SubGraph* SubGraphNode) const;

@@ -11,7 +11,7 @@ UFlowNode_OnNotifyFromActor::UFlowNode_OnNotifyFromActor(const FObjectInitialize
 {
 #if WITH_EDITOR
 	Category = TEXT("Notifies");
-	NodeStyle = EFlowNodeStyle::Condition;
+	NodeDisplayStyle = FlowNodeStyle::Condition;
 #endif
 }
 

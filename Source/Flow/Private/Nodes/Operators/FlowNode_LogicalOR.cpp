@@ -12,7 +12,7 @@ UFlowNode_LogicalOR::UFlowNode_LogicalOR(const FObjectInitializer& ObjectInitial
 {
 #if WITH_EDITOR
 	Category = TEXT("Operators");
-	NodeStyle = EFlowNodeStyle::Logic;
+	NodeDisplayStyle = FlowNodeStyle::Logic;
 #endif
 
 	SetNumberedInputPins(0, 1);

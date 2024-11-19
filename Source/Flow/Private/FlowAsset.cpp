@@ -7,6 +7,7 @@
 #include "FlowSubsystem.h"
 
 #include "AddOns/FlowNodeAddOn.h"
+#include "Interfaces/FlowDataPinGeneratorNodeInterface.h"
 #include "Nodes/FlowNodeBase.h"
 #include "Nodes/Route/FlowNode_CustomInput.h"
 #include "Nodes/Route/FlowNode_CustomOutput.h"
@@ -175,7 +176,8 @@ bool UFlowAsset::CanFlowNodeClassBeUsedByFlowAsset(const UClass& FlowNodeClass) 
 	}
 
 	// UFlowNode class limits which UFlowAsset class can use it
-	for (const UClass* DeniedAssetClass : NodeDefaults->DeniedAssetClasses)
+	const TArray<TSubclassOf<UFlowAsset>>& DeniedAssetClasses = NodeDefaults->DeniedAssetClasses;
+	for (const UClass* DeniedAssetClass : DeniedAssetClasses)
 	{
 		if (DeniedAssetClass && GetClass()->IsChildOf(DeniedAssetClass))
 		{
@@ -183,10 +185,11 @@ bool UFlowAsset::CanFlowNodeClassBeUsedByFlowAsset(const UClass& FlowNodeClass) 
 		}
 	}
 
-	if (NodeDefaults->AllowedAssetClasses.Num() > 0)
+	const TArray<TSubclassOf<UFlowAsset>>& AllowedAssetClasses = NodeDefaults->AllowedAssetClasses;
+	if (AllowedAssetClasses.Num() > 0)
 	{
 		bool bAllowedInAsset = false;
-		for (const UClass* AllowedAssetClass : NodeDefaults->AllowedAssetClasses)
+		for (const UClass* AllowedAssetClass : AllowedAssetClasses)
 		{
 			if (AllowedAssetClass && GetClass()->IsChildOf(AllowedAssetClass))
 			{
@@ -245,24 +248,30 @@ bool UFlowAsset::CanFlowAssetUseFlowNodeClass(const UClass& FlowNodeClass) const
 	return true;
 }
 
-bool UFlowAsset::CanFlowAssetReferenceFlowNode(const UClass& FlowNodeOrAddOnClass, FText* OutOptionalFailureReason) const
+bool UFlowAsset::CanFlowAssetReferenceFlowNode(const UClass& FlowNodeClass, FText* OutOptionalFailureReason) const
 {
-	if (!GEditor || !IsValid(&FlowNodeOrAddOnClass))
+	if (!GEditor || !IsValid(&FlowNodeClass))
 	{
 		return false;
 	}
 
-	FAssetData FlowNodeAssetData(&FlowNodeOrAddOnClass);
-
 	FAssetReferenceFilterContext AssetReferenceFilterContext;
+
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 5
 	AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(this));
+#else
+	AssetReferenceFilterContext.AddReferencingAsset(FAssetData(this));
+#endif
 
 	// Confirm plugin reference restrictions are being respected
-	TSharedPtr<IAssetReferenceFilter> FlowAssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
-	if (FlowAssetReferenceFilter.IsValid() &&
-		!FlowAssetReferenceFilter->PassesFilter(FlowNodeAssetData, OutOptionalFailureReason))
+	const TSharedPtr<IAssetReferenceFilter> FlowAssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
+	if (FlowAssetReferenceFilter.IsValid())
 	{
-		return false;
+		const FAssetData FlowNodeAssetData(&FlowNodeClass);
+		if (!FlowAssetReferenceFilter->PassesFilter(FlowNodeAssetData, OutOptionalFailureReason))
+		{
+			return false;
+		}
 	}
 
 	return true;
@@ -291,6 +300,7 @@ void UFlowAsset::RegisterNode(const FGuid& NewGuid, UFlowNode* NewNode)
 	Nodes.Emplace(NewGuid, NewNode);
 
 	HarvestNodeConnections();
+	(void)TryUpdateManagedFlowPinsForNode(*NewNode);
 }
 
 void UFlowAsset::UnregisterNode(const FGuid& NodeGuid)
@@ -299,6 +309,7 @@ void UFlowAsset::UnregisterNode(const FGuid& NodeGuid)
 	Nodes.Compact();
 
 	HarvestNodeConnections();
+
 	MarkPackageDirty();
 }
 
@@ -320,13 +331,30 @@ void UFlowAsset::HarvestNodeConnections()
 
 	for (const TPair<FGuid, UFlowNode*>& Pair : Nodes)
 	{
-		UFlowNode* Node = Pair.Value;
+		UFlowNode* FlowNode = Pair.Value;
 		TMap<FName, FConnectedPin> FoundConnections;
+		const TArray<UEdGraphPin*>& GraphNodePins = FlowNode->GetGraphNode()->Pins;
 
-		for (const UEdGraphPin* ThisPin : Node->GetGraphNode()->Pins)
+		for (const UEdGraphPin* ThisPin : GraphNodePins)
 		{
-			if (ThisPin->Direction == EGPD_Output && ThisPin->LinkedTo.Num() > 0)
+			const bool bIsExecPin = FFlowPin::IsExecPinCategory(ThisPin->PinType.PinCategory);
+			const bool bIsDataPin = FFlowPin::IsDataPinCategory(ThisPin->PinType.PinCategory);
+			const bool bIsOutputPin = (ThisPin->Direction == EGPD_Output);
+			const bool bIsInputPin = (ThisPin->Direction == EGPD_Input);
+			const bool bHasAtLeastOneConnection = ThisPin->LinkedTo.Num() > 0;
+
+			if (bIsExecPin && bIsOutputPin && bHasAtLeastOneConnection)
 			{
+				// For Exec Pins, harvest the 0th connection (we should have only 1 connection, because of schema rules)
+				if (const UEdGraphPin* LinkedPin = ThisPin->LinkedTo[0])
+				{
+					const UEdGraphNode* LinkedNode = LinkedPin->GetOwningNode();
+					FoundConnections.Add(ThisPin->PinName, FConnectedPin(LinkedNode->NodeGuid, LinkedPin->PinName));
+				}
+			}
+			else if (bIsDataPin && bIsInputPin && bHasAtLeastOneConnection)
+			{
+				// For Data Pins, harvest the 0th connection (we should have only 1 connection, because of schema rules)
 				if (const UEdGraphPin* LinkedPin = ThisPin->LinkedTo[0])
 				{
 					const UEdGraphNode* LinkedNode = LinkedPin->GetOwningNode();
@@ -339,7 +367,9 @@ void UFlowAsset::HarvestNodeConnections()
 		// Optimization: we need check it only until the first node would be marked dirty, as this already marks Flow Asset package dirty
 		if (bGraphDirty == false)
 		{
-			if (FoundConnections.Num() != Node->Connections.Num())
+			const TMap<FName, FConnectedPin>& OldConnections = FlowNode->Connections;
+
+			if (FoundConnections.Num() != OldConnections.Num())
 			{
 				bGraphDirty = true;
 			}
@@ -347,7 +377,7 @@ void UFlowAsset::HarvestNodeConnections()
 			{
 				for (const TPair<FName, FConnectedPin>& FoundConnection : FoundConnections)
 				{
-					if (const FConnectedPin* OldConnection = Node->Connections.Find(FoundConnection.Key))
+					if (const FConnectedPin* OldConnection = OldConnections.Find(FoundConnection.Key))
 					{
 						if (FoundConnection.Value != *OldConnection)
 						{
@@ -366,14 +396,482 @@ void UFlowAsset::HarvestNodeConnections()
 
 		if (bGraphDirty)
 		{
-			Node->SetFlags(RF_Transactional);
-			Node->Modify();
+			FlowNode->SetFlags(RF_Transactional);
+			FlowNode->Modify();
 
-			Node->SetConnections(FoundConnections);
-			Node->PostEditChange();
+			FlowNode->SetConnections(FoundConnections);
+			FlowNode->PostEditChange();
 		}
 	}
+
+	// NOTE (gtaylor) @mothdoctor, do we need to do anything with bGraphDirty here?  
+	// It's scope seems like we wanted to do something at this point.
 }
+
+bool UFlowAsset::TryUpdateManagedFlowPinsForNode(UFlowNode& FlowNode)
+{
+	const UClass* FlowNodeClass = FlowNode.GetClass();
+	if (!IsValid(FlowNodeClass))
+	{
+		return false;
+	}
+
+	// Setup the working data struct
+	FFlowHarvestDataPinsWorkingData WorkingData =
+		FFlowHarvestDataPinsWorkingData(
+			FlowNode,
+			FlowNode.GetPinNameToBoundPropertyNameMap(),
+			FlowNode.GetAutoInputDataPins(),
+			FlowNode.GetAutoOutputDataPins());
+
+	// Some nodes can auto-generate some pins directly, 
+	// so let them append their pins into our arrays first.
+	if (IFlowDataPinGeneratorNodeInterface* AutoGeneratorNode = Cast<IFlowDataPinGeneratorNodeInterface>(&FlowNode))
+	{
+		AutoGeneratorNode->AutoGenerateDataPins(
+			WorkingData.PinNameToBoundPropertyNameMapNext,
+			WorkingData.AutoInputDataPinsNext,
+			WorkingData.AutoOutputDataPinsNext);
+	}
+
+	// Try to harvest pins to auto-generate and/or bind to for each property in the flow node
+	for (TFieldIterator<FProperty> PropertyIt(FlowNodeClass); PropertyIt; ++PropertyIt)
+	{
+		HarvestFlowPinMetadataForProperty(*PropertyIt, WorkingData);
+	}
+
+	// Check if the pin name to bound property map changed
+	WorkingData.bPinNameMapChanged |= WorkingData.DidPinNameToBoundPropertyNameMapChange();
+
+	// If the auto-generated data pins array changed, it counts as dirty as well
+	const bool bAutoInputDataPinsChanged = WorkingData.DidAutoInputDataPinsChange();
+	const bool bAutoOutputDataPinsChanged = WorkingData.DidAutoOutputDataPinsChange();
+
+	if (WorkingData.bPinNameMapChanged || bAutoInputDataPinsChanged || bAutoOutputDataPinsChanged)
+	{
+		FlowNode.SetFlags(RF_Transactional);
+		FlowNode.Modify();
+
+		// Lock-in the data that changed.
+		if (WorkingData.bPinNameMapChanged)
+		{
+			FlowNode.SetPinNameToBoundPropertyNameMap(WorkingData.PinNameToBoundPropertyNameMapNext);
+		}
+
+		if (bAutoInputDataPinsChanged || bAutoOutputDataPinsChanged)
+		{
+			if (bAutoInputDataPinsChanged)
+			{
+				FlowNode.SetAutoInputDataPins(WorkingData.AutoInputDataPinsNext);
+			}
+
+			if (bAutoOutputDataPinsChanged)
+			{
+				FlowNode.SetAutoOutputDataPins(WorkingData.AutoOutputDataPinsNext);
+			}
+
+			if (FlowNode.GraphNode)
+			{
+				FlowNode.OnReconstructionRequested.ExecuteIfBound();
+			}
+		}
+
+		FlowNode.PostEditChange();
+
+		return true;
+	}
+
+	return false;
+}
+
+void UFlowAsset::HarvestFlowPinMetadataForProperty(const FProperty* Property, FFlowHarvestDataPinsWorkingData& InOutData)
+{
+	FText PinDisplayName = Property->GetDisplayNameText();
+	const FName& PinAuthoredName = Property->GetFName();
+
+	// Default assumption is the pin is will be a output pin, if no metadata is specified (ie, bIsSourceForOutputPin == false),
+	// because this is the most common case (the auto-generated input-pin-from-property case is only for defaulting)
+	TArray<FFlowPin>* FlowPinArray = &InOutData.AutoOutputDataPinsNext;
+
+	const FString* SourceForOutputFlowPinName = Property->FindMetaData(FFlowPin::MetadataKey_SourceForOutputFlowPin);
+	const FString* DefaultForInputFlowPinName = Property->FindMetaData(FFlowPin::MetadataKey_DefaultForInputFlowPin);
+
+	if (SourceForOutputFlowPinName && DefaultForInputFlowPinName)
+	{
+		LogError(
+			FString::Printf(TEXT("Error.  A property cannot be both a %s and %s"),
+			                *FFlowPin::MetadataKey_SourceForOutputFlowPin.ToString(),
+			                *FFlowPin::MetadataKey_DefaultForInputFlowPin.ToString()),
+			InOutData.FlowNode);
+
+		return;
+	}
+
+	if (SourceForOutputFlowPinName)
+	{
+		const FString SpecifyOutputPinNameString = *SourceForOutputFlowPinName;
+
+		if (SpecifyOutputPinNameString.Len() > 0)
+		{
+			// Replace the default PinDisplayName with the name specified in the Metadata value
+			PinDisplayName = FText::FromString(SpecifyOutputPinNameString);
+		}
+	}
+	else if (DefaultForInputFlowPinName)
+	{
+		const FString SpecifyInputPinNameString = *DefaultForInputFlowPinName;
+
+		if (SpecifyInputPinNameString.Len() > 0)
+		{
+			// Replace the default PinDisplayName with the name specified in the Metadata value
+			PinDisplayName = FText::FromString(SpecifyInputPinNameString);
+		}
+
+		// If the property is a Default Input for a data pin, then we need to generate the pin in the
+		// Input Pins array.
+		FlowPinArray = &InOutData.AutoInputDataPinsNext;
+	}
+
+	// Check for relevant metadata keys on the property's USTRUCT()
+	const FStructProperty* StructProperty = CastField<FStructProperty>(Property);
+	if (StructProperty && StructProperty->Struct)
+	{
+		const UScriptStruct* ScriptStruct = StructProperty->Struct;
+
+		// We also look in the USTRUCT for DefaultForInputFlowPin
+		DefaultForInputFlowPinName = ScriptStruct->FindMetaData(FFlowPin::MetadataKey_DefaultForInputFlowPin);
+		if (DefaultForInputFlowPinName)
+		{
+			// If the property is a Default Input for a data pin, then we need to generate the pin in the
+			// Input Pins array.
+			FlowPinArray = &InOutData.AutoInputDataPinsNext;
+		}
+
+		if (const FString* AutoPinType = ScriptStruct->FindMetaData(FFlowPin::MetadataKey_FlowPinType))
+		{
+			const bool bIsInputPin = DefaultForInputFlowPinName != nullptr;
+
+			// Auto-generate the pin for this property
+			if (!TryCreateFlowDataPinFromMetadataValue(*AutoPinType, *InOutData.FlowNode, *Property, PinDisplayName, bIsInputPin, FlowPinArray))
+			{
+				LogError(FString::Printf(TEXT("Error.  Unknown value %s for metadata %s"), **AutoPinType, *FFlowPin::MetadataKey_FlowPinType.ToString()), InOutData.FlowNode);
+
+				return;
+			}
+
+			// Add a binding for the new pin to its property
+			AddDataPinPropertyBindingToMap(
+				PinAuthoredName,
+				Property->GetFName(),
+				InOutData);
+
+			return;
+		}
+	}
+
+	const FString* AutoPinType = Property->FindMetaData(FFlowPin::MetadataKey_FlowPinType);
+
+	if (!SourceForOutputFlowPinName && !DefaultForInputFlowPinName && !AutoPinType)
+	{
+		// If we didn't detect any the relevent metadata keys, we can exit early
+
+		return;
+	}
+
+	if (AutoPinType)
+	{
+		// Auto-generate the desired pin for this property
+		const bool bIsInputPin = DefaultForInputFlowPinName != nullptr;
+
+		if (!TryCreateFlowDataPinFromMetadataValue(*AutoPinType, *InOutData.FlowNode, *Property, PinDisplayName, bIsInputPin, FlowPinArray))
+		{
+			LogError(FString::Printf(TEXT("Unknown value %s for metadata %s"), **AutoPinType, *FFlowPin::MetadataKey_FlowPinType.ToString()), InOutData.FlowNode);
+
+			return;
+		}
+	}
+	else if (SourceForOutputFlowPinName)
+	{
+		// Bind to the output data pin to source from the property (but do not auto-generate the pin)
+
+		FFlowPin* FoundFlowPin = InOutData.FlowNode->FindOutputPinByName(PinAuthoredName);
+		if (!FoundFlowPin)
+		{
+			LogError(FString::Printf(TEXT("Could not find bound data pin named %s for property %s"), *PinAuthoredName.ToString(), *Property->GetName()), InOutData.FlowNode);
+
+			return;
+		}
+	}
+	else if (DefaultForInputFlowPinName)
+	{
+		// Bind to the input data pin to default its value from the property (but do not auto-generate the pin)
+
+		FFlowPin* FoundFlowPin = InOutData.FlowNode->FindInputPinByName(PinAuthoredName);
+		if (!FoundFlowPin)
+		{
+			LogError(FString::Printf(TEXT("Could not find bound data pin named %s for property %s"), *PinAuthoredName.ToString(), *Property->GetName()), InOutData.FlowNode);
+
+			return;
+		}
+	}
+
+	// Add a binding for the data pin to its property
+	AddDataPinPropertyBindingToMap(
+		PinAuthoredName,
+		Property->GetFName(),
+		InOutData);
+}
+
+void UFlowAsset::AddDataPinPropertyBindingToMap(
+	const FName& PinAuthoredName,
+	const FName& PropertyAuthoredName,
+	FFlowHarvestDataPinsWorkingData& InOutData)
+{
+	// Add a new entry in the map for this DataPin name to the property it sources from
+	InOutData.PinNameToBoundPropertyNameMapNext.Add(PinAuthoredName, PropertyAuthoredName);
+}
+
+template <typename TEnumProperty, typename TVectorProperty, typename TRotatorProperty, typename TTransformProperty, typename TGameplayTagProperty, typename TGameplayTagContainerProperty,
+          typename TInstancedStructProperty, typename TObjectProperty, typename TClassProperty>
+void AddPinForPinType(EFlowPinType PinType, UFlowNode& FlowNode, const FProperty& Property, const FText& PinDisplayName, TArray<FFlowPin>* InOutDataPinsNext)
+{
+	const FName& PinAuthoredName = Property.GetFName();
+
+	// Some of the FlowPinTypes require a SubCategoryObject to fully define the type, so
+	// we need to find that for the cases that it applies to.
+
+	FLOW_ASSERT_ENUM_MAX(EFlowPinType, 16);
+
+	FFlowPin& NewFlowPin = InOutDataPinsNext->Add_GetRef(FFlowPin(PinAuthoredName, PinDisplayName));
+	switch (PinType)
+	{
+	case EFlowPinType::Enum:
+		{
+			UEnum* EnumClass = nullptr;
+
+			if (const FStructProperty* StructProperty = CastField<FStructProperty>(&Property))
+			{
+				// Check for a wrapper struct to get the enum data from
+				const UStruct* ScriptStruct = TEnumProperty::StaticStruct();
+				if (StructProperty->Struct == ScriptStruct)
+				{
+					TEnumProperty ValueStruct;
+					StructProperty->GetValue_InContainer(&FlowNode, &ValueStruct);
+
+					EnumClass = ValueStruct.EnumClass;
+				}
+			}
+			else if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(&Property))
+			{
+				// Get the enum data from the FEnumProperty
+				EnumClass = EnumProperty->GetEnum();
+			}
+
+			NewFlowPin.SetPinType(PinType, EnumClass);
+		}
+		break;
+
+	case EFlowPinType::Vector:
+		{
+			UScriptStruct* ValueStructType = FFlowDataPinProperty::FindScriptStructForFlowDataPinProperty<TVectorProperty, FVector>(Property);
+			NewFlowPin.SetPinType(PinType, ValueStructType);
+		}
+		break;
+
+	case EFlowPinType::Rotator:
+		{
+			UScriptStruct* ValueStructType = FFlowDataPinProperty::FindScriptStructForFlowDataPinProperty<TRotatorProperty, FRotator>(Property);
+			NewFlowPin.SetPinType(PinType, ValueStructType);
+		}
+		break;
+
+	case EFlowPinType::Transform:
+		{
+			UScriptStruct* ValueStructType = FFlowDataPinProperty::FindScriptStructForFlowDataPinProperty<TTransformProperty, FTransform>(Property);
+			NewFlowPin.SetPinType(PinType, ValueStructType);
+		}
+		break;
+
+	case EFlowPinType::GameplayTag:
+		{
+			UScriptStruct* ValueStructType = FFlowDataPinProperty::FindScriptStructForFlowDataPinProperty<TGameplayTagProperty, FGameplayTag>(Property);
+			NewFlowPin.SetPinType(PinType, ValueStructType);
+		}
+		break;
+
+	case EFlowPinType::GameplayTagContainer:
+		{
+			UScriptStruct* ValueStructType = FFlowDataPinProperty::FindScriptStructForFlowDataPinProperty<TGameplayTagContainerProperty, FGameplayTagContainer>(Property);
+			NewFlowPin.SetPinType(PinType, ValueStructType);
+		}
+		break;
+
+	case EFlowPinType::InstancedStruct:
+		{
+			UScriptStruct* ValueStructType = FFlowDataPinProperty::FindScriptStructForFlowDataPinProperty<TInstancedStructProperty, FInstancedStruct>(Property);
+			NewFlowPin.SetPinType(PinType, ValueStructType);
+		}
+		break;
+
+	case EFlowPinType::Object:
+		{
+			UClass* Class = nullptr;
+			if (const FStructProperty* StructProperty = CastField<FStructProperty>(&Property))
+			{
+				const UStruct* ScriptStruct = TObjectProperty::StaticStruct();
+				static const UStruct* SoftObjectPathStruct = TBaseStructure<FSoftObjectPath>::Get();
+
+				if (StructProperty->Struct == ScriptStruct)
+				{
+					TObjectProperty ValueStruct;
+					StructProperty->GetValue_InContainer(&FlowNode, &ValueStruct);
+
+					// Get the Object property's base UClass from the FFlowDataPinProperty
+					Class = ValueStruct.DeriveObjectClass(*StructProperty);
+				}
+				else if (StructProperty->Struct == SoftObjectPathStruct)
+				{
+					// Get the Object property's base UClass from the struct property's MetaData
+					Class = FFlowDataPinOutputProperty_Object::TryGetObjectClassFromProperty(*StructProperty);
+				}
+			}
+			else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(&Property))
+			{
+				// Get the Object property's base UClass from the property's MetaData
+				Class = ObjectProperty->PropertyClass;
+			}
+			else if (const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(&Property))
+			{
+				// Get the Object property's base UClass from the property's MetaData
+				Class = SoftObjectProperty->PropertyClass;
+			}
+			else if (const FWeakObjectProperty* WeakObjectProperty = CastField<FWeakObjectProperty>(&Property))
+			{
+				// Get the Object property's base UClass from the property's MetaData
+				Class = WeakObjectProperty->PropertyClass;
+			}
+			else if (const FLazyObjectProperty* LazyObjectProperty = CastField<FLazyObjectProperty>(&Property))
+			{
+				// Get the Object property's base UClass from the property's MetaData
+				Class = LazyObjectProperty->PropertyClass;
+			}
+
+			NewFlowPin.SetPinType(PinType, Class);
+		}
+		break;
+
+	case EFlowPinType::Class:
+		{
+			UClass* Class = nullptr;
+			if (const FStructProperty* StructProperty = CastField<FStructProperty>(&Property))
+			{
+				const UStruct* ScriptStruct = TClassProperty::StaticStruct();
+				static const UStruct* SoftClassPathStruct = TBaseStructure<FSoftClassPath>::Get();
+
+				if (StructProperty->Struct == ScriptStruct)
+				{
+					TClassProperty ValueStruct;
+					StructProperty->GetValue_InContainer(&FlowNode, &ValueStruct);
+
+					// Get the Class property's base UClass from the FFlowDataPinProperty
+					Class = ValueStruct.DeriveMetaClass(*StructProperty);
+				}
+				else if (StructProperty->Struct == SoftClassPathStruct)
+				{
+					// Get the Class property's base UClass from the struct property's MetaData
+					Class = FFlowDataPinOutputProperty_Class::TryGetMetaClassFromProperty(*StructProperty);
+				}
+			}
+			else if (const FClassProperty* ClassProperty = CastField<FClassProperty>(&Property))
+			{
+				// Get the Class property's base UClass from the property's MetaData
+				Class = ClassProperty->MetaClass;
+			}
+			else if (const FSoftClassProperty* SoftClassProperty = CastField<FSoftClassProperty>(&Property))
+			{
+				// Get the Class property's base UClass from the property's MetaData
+				Class = SoftClassProperty->MetaClass;
+			}
+
+			NewFlowPin.SetPinType(PinType, Class);
+		}
+		break;
+
+	default:
+		{
+			NewFlowPin.SetPinType(PinType);
+		}
+		break;
+	}
+}
+
+bool UFlowAsset::TryCreateFlowDataPinFromMetadataValue(
+	const FString& MetadataValue,
+	UFlowNode& FlowNode,
+	const FProperty& Property,
+	const FText& PinDisplayName,
+	const bool bIsInputPin,
+	TArray<FFlowPin>* InOutDataPinsNext) const
+{
+	check(InOutDataPinsNext);
+
+	const TArray<FName>& CachedEnumValueNames = FFlowPin::GetFlowPinTypeEnumValuesWithoutSpaces();
+
+	const FName MetadataValueAsName = FName(MetadataValue);
+
+	for (EFlowPinType PinType : TEnumRange<EFlowPinType>())
+	{
+		const int32 PinTypeAsInt = FlowEnum::ToInt(PinType);
+		check(CachedEnumValueNames.IsValidIndex(PinTypeAsInt));
+		const FName& EnumValueAsName = CachedEnumValueNames[PinTypeAsInt];
+
+		if (MetadataValueAsName == EnumValueAsName)
+		{
+			if (bIsInputPin)
+			{
+				AddPinForPinType<
+					FFlowDataPinInputProperty_Enum,
+					FFlowDataPinInputProperty_Vector,
+					FFlowDataPinInputProperty_Rotator,
+					FFlowDataPinInputProperty_Transform,
+					FFlowDataPinInputProperty_GameplayTag,
+					FFlowDataPinInputProperty_GameplayTagContainer,
+					FFlowDataPinInputProperty_InstancedStruct,
+					FFlowDataPinInputProperty_Object,
+					FFlowDataPinInputProperty_Class>(
+					PinType,
+					FlowNode,
+					Property,
+					PinDisplayName,
+					InOutDataPinsNext);
+			}
+			else
+			{
+				AddPinForPinType<
+					FFlowDataPinOutputProperty_Enum,
+					FFlowDataPinOutputProperty_Vector,
+					FFlowDataPinInputProperty_Rotator,
+					FFlowDataPinOutputProperty_Transform,
+					FFlowDataPinOutputProperty_GameplayTag,
+					FFlowDataPinOutputProperty_GameplayTagContainer,
+					FFlowDataPinOutputProperty_InstancedStruct,
+					FFlowDataPinOutputProperty_Object,
+					FFlowDataPinOutputProperty_Class>(
+					PinType,
+					FlowNode,
+					Property,
+					PinDisplayName,
+					InOutDataPinsNext);
+			}
+
+			return true;
+		}
+	}
+
+	// Subclasses of UFlowAsset can extend the supported MetadataValues -> FFlowPin mappings
+	return false;
+}
+
 #endif
 
 UFlowNode* UFlowAsset::GetDefaultEntryNode() const
@@ -384,7 +882,7 @@ UFlowNode* UFlowAsset::GetDefaultEntryNode() const
 	{
 		if (UFlowNode_Start* StartNode = Cast<UFlowNode_Start>(Node.Value))
 		{
-			if (StartNode->GetConnectedNodes().Num() > 0)
+			if (StartNode->GatherConnectedNodes().Num() > 0)
 			{
 				return StartNode;
 			}
@@ -656,13 +1154,19 @@ void UFlowAsset::PreStartFlow()
 #endif
 }
 
-void UFlowAsset::StartFlow()
+void UFlowAsset::StartFlow(IFlowDataPinValueSupplierInterface* DataPinValueSupplier)
 {
 	PreStartFlow();
 
 	if (UFlowNode* ConnectedEntryNode = GetDefaultEntryNode())
 	{
 		RecordedNodes.Add(ConnectedEntryNode);
+
+		if (IFlowNodeWithExternalDataPinSupplierInterface* ExternalPinSuppliedNode = Cast<IFlowNodeWithExternalDataPinSupplierInterface>(ConnectedEntryNode))
+		{
+			ExternalPinSuppliedNode->SetDataPinValueSupplier(DataPinValueSupplier);
+		}
+
 		ConnectedEntryNode->TriggerFirstOutput(true);
 	}
 }
@@ -713,35 +1217,51 @@ TWeakObjectPtr<UFlowAsset> UFlowAsset::GetFlowInstance(UFlowNode_SubGraph* SubGr
 	return ActiveSubGraphs.FindRef(SubGraphNode);
 }
 
-void UFlowAsset::TriggerCustomInput_FromSubGraph(UFlowNode_SubGraph* Node, const FName& EventName) const
+void UFlowAsset::TriggerCustomInput_FromSubGraph(UFlowNode_SubGraph* SubGraphNode, const FName& EventName) const
 {
-	const TWeakObjectPtr<UFlowAsset> FlowInstance = ActiveSubGraphs.FindRef(Node);
+	// NOTE (gtaylor) Custom Input nodes cannot currently add data pins (like Start or DefineProperties nodes can)
+	// but we may want to allow them to source parameters, so I am providing the subgraph node as the 
+	// IFlowDataPinValueSupplierInterface when triggering the node (even though it's not used at this time).
+
+	const TWeakObjectPtr<UFlowAsset> FlowInstance = ActiveSubGraphs.FindRef(SubGraphNode);
 	if (FlowInstance.IsValid())
 	{
-		FlowInstance->TriggerCustomInput(EventName);
+		FlowInstance->TriggerCustomInput(EventName, SubGraphNode);
 	}
 }
 
-void UFlowAsset::TriggerCustomInput(const FName& EventName)
+void UFlowAsset::TriggerCustomInput(const FName& EventName, IFlowDataPinValueSupplierInterface* DataPinValueSupplier)
 {
-	for (UFlowNode_CustomInput* CustomInput : CustomInputNodes)
+	for (UFlowNode_CustomInput* CustomInputNode : CustomInputNodes)
 	{
-		if (CustomInput->EventName == EventName)
+		if (CustomInputNode->EventName == EventName)
 		{
-			RecordedNodes.Add(CustomInput);
-			CustomInput->ExecuteInput(EventName);
+			RecordedNodes.Add(CustomInputNode);
+
+			// NOTE (gtaylor) Custom Input nodes cannot currently add data pins (like Start or DefineProperties nodes can)
+			// but we may want to allow them to source parameters, so I am providing the subgraph node as the 
+			// IFlowDataPinValueSupplierInterface when triggering the node (even though it's not used at this time).
+
+			if (IFlowNodeWithExternalDataPinSupplierInterface* ExternalPinSuppliedNode = Cast<IFlowNodeWithExternalDataPinSupplierInterface>(CustomInputNode))
+			{
+				ExternalPinSuppliedNode->SetDataPinValueSupplier(DataPinValueSupplier);
+			}
+
+			CustomInputNode->ExecuteInput(EventName);
 		}
 	}
 }
 
 void UFlowAsset::TriggerCustomOutput(const FName& EventName)
 {
-	if (NodeOwningThisAssetInstance.IsValid()) // it's a SubGraph
+	if (NodeOwningThisAssetInstance.IsValid())
 	{
+		// it's a SubGraph
 		NodeOwningThisAssetInstance->TriggerOutput(EventName);
 	}
-	else // it's a Root Flow, so the intention here might be to call event on the Flow Component
+	else
 	{
+		// it's a Root Flow, so the intention here might be to call event on the Flow Component
 		if (UFlowComponent* FlowComponent = Cast<UFlowComponent>(GetOwner()))
 		{
 			FlowComponent->OnTriggerRootFlowOutputEventDispatcher(this, EventName);
@@ -775,19 +1295,18 @@ void UFlowAsset::FinishNode(UFlowNode* Node)
 			if (NodeOwningThisAssetInstance.IsValid())
 			{
 				NodeOwningThisAssetInstance.Get()->TriggerFirstOutput(true);
+
 				return;
 			}
-			else
+
+			// if this instance is a Root Flow, we need to deregister it from the subsystem first
+			if (Owner.IsValid())
 			{
-				// if this instance is a Root Flow, we need to deregister it from the subsystem first
-				if (Owner.IsValid())
+				const TSet<UFlowAsset*>& RootFlowInstances = GetFlowSubsystem()->GetRootInstancesByOwner(Owner.Get());
+				if (RootFlowInstances.Contains(this))
 				{
-					const TSet<UFlowAsset*>& RootFlowInstances = GetFlowSubsystem()->GetRootInstancesByOwner(Owner.Get());
-					if (RootFlowInstances.Contains(this))
-					{
-						GetFlowSubsystem()->FinishRootFlow(Owner.Get(), TemplateAsset, EFlowFinishPolicy::Keep);
-						return;
-					}
+					GetFlowSubsystem()->FinishRootFlow(Owner.Get(), TemplateAsset, EFlowFinishPolicy::Keep);
+					return;
 				}
 			}
 
@@ -963,4 +1482,44 @@ void UFlowAsset::LogNote(const FString& MessageToLog, const UFlowNodeBase* Node)
 		BroadcastRuntimeMessageAdded(TokenizedMessage);
 	}
 }
+#endif
+
+#if WITH_EDITOR
+bool FFlowHarvestDataPinsWorkingData::DidPinNameToBoundPropertyNameMapChange() const
+{
+	if (PinNameToBoundPropertyNameMapPrev.Num() != PinNameToBoundPropertyNameMapNext.Num())
+	{
+		return true;
+	}
+
+	for (const auto& KV : PinNameToBoundPropertyNameMapPrev)
+	{
+		const FName& PinNameFromPrev = KV.Key;
+		const FName& PropertyNameFromPrev = KV.Value;
+
+		const FName* FoundPropertyNameInNext = PinNameToBoundPropertyNameMapNext.Find(PinNameFromPrev);
+		if (!FoundPropertyNameInNext)
+		{
+			return true;
+		}
+
+		if (*FoundPropertyNameInNext != PropertyNameFromPrev)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool FFlowHarvestDataPinsWorkingData::DidAutoInputDataPinsChange() const
+{
+	return !FFlowPin::ArePinArraysMatchingNamesAndTypes(AutoInputDataPinsPrev, AutoInputDataPinsNext);
+}
+
+bool FFlowHarvestDataPinsWorkingData::DidAutoOutputDataPinsChange() const
+{
+	return !FFlowPin::ArePinArraysMatchingNamesAndTypes(AutoOutputDataPinsPrev, AutoOutputDataPinsNext);
+}
+
 #endif

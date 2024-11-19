@@ -30,10 +30,12 @@
 #include "UObject/Class.h"
 #include "UObject/ObjectPtr.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SToolTip.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/STableRow.h"
 
@@ -217,7 +219,9 @@ void SFindInFlow::Construct( const FArguments& InArgs, TSharedPtr<FFlowAssetEdit
 				.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 				[
 					SAssignNew(TreeView, STreeViewType)
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 5
 					.ItemHeight(24)
+#endif
 					.TreeItemsSource(&ItemsFound)
 					.OnGenerateRow(this, &SFindInFlow::OnGenerateRow)
 					.OnGetChildren(this, &SFindInFlow::OnGetChildren)

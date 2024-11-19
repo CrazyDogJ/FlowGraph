@@ -7,7 +7,10 @@
 #include "Interfaces/FlowCoreExecutableInterface.h"
 #include "Interfaces/FlowContextPinSupplierInterface.h"
 #include "FlowMessageLog.h"
+#include "FlowTags.h"
 #include "FlowTypes.h"
+#include "Types/FlowDataPinResults.h"
+#include "NativeGameplayTags.h"
 
 #include "FlowNodeBase.generated.h"
 
@@ -17,13 +20,37 @@ class UFlowNodeAddOn;
 class UFlowSubsystem;
 class UEdGraphNode;
 class IFlowOwnerInterface;
+class IFlowDataPinValueSupplierInterface;
+struct FFlowPin;
 
 #if WITH_EDITOR
 DECLARE_DELEGATE(FFlowNodeEvent);
 #endif
 
-typedef TFunction<void(const UFlowNodeAddOn&)> FConstFlowNodeAddOnFunction;
-typedef TFunction<void(UFlowNodeAddOn&)> FFlowNodeAddOnFunction;
+typedef TFunction<EFlowForEachAddOnFunctionReturnValue(const UFlowNodeAddOn&)> FConstFlowNodeAddOnFunction;
+typedef TFunction<EFlowForEachAddOnFunctionReturnValue(UFlowNodeAddOn&)> FFlowNodeAddOnFunction;
+
+// Supplier + PinName (in that supplier) for a Flow Data Pin value
+struct FFlowPinValueSupplierData
+{
+	FName SupplierPinName;
+	const IFlowDataPinValueSupplierInterface* PinValueSupplier = nullptr;
+};
+
+// Helper template to reduce (some) of the boilerplate in TryResolveDataPinAs...() functions
+template <typename TFlowDataPinResultType, EFlowPinType PinType>
+struct TResolveDataPinWorkingData
+{
+	bool TrySetupWorkingData(const FName& PinName, const UFlowNodeBase& FlowNodeBase);
+
+	TFlowDataPinResultType DataPinResult;
+	const UFlowNode* FlowNode = nullptr;
+	const FFlowPin* FlowPin = nullptr;
+	
+	TArray<FFlowPinValueSupplierData> PinValueSupplierDatas;
+
+	static constexpr bool bCheckDefaultProperties = true;
+};
 
 /**
  * The base class for UFlowNode and UFlowNodeAddOn, with their shared functionality
@@ -48,6 +75,9 @@ public:
 	// UObject
 	virtual UWorld* GetWorld() const override;
 	// --
+
+	// Dispatcher for ExecuteInput to ensure the AddOns get their ExecuteInput calls even if the node/addon
+	void ExecuteInputForSelfAndAddOns(const FName& PinName);
 
 	// IFlowCoreExecutableInterface
 	virtual void InitializeInstance() override;
@@ -89,12 +119,13 @@ public:
 
 public:
 	static const FFlowPin* FindFlowPinByName(const FName& PinName, const TArray<FFlowPin>& FlowPins);
+	static FFlowPin* FindFlowPinByName(const FName& PinName, TArray<FFlowPin>& FlowPins);
 	virtual bool IsSupportedInputPinName(const FName& PinName) const PURE_VIRTUAL(IsSupportedInputPinName, return true;);
 
 #if WITH_EDITOR
 public:	
 	// IFlowContextPinSupplierInterface
-	virtual bool SupportsContextPins() const override { return false; }
+	virtual bool SupportsContextPins() const override { return IFlowContextPinSupplierInterface::SupportsContextPins(); }
 	virtual TArray<FFlowPin> GetContextInputs() const override;
 	virtual TArray<FFlowPin> GetContextOutputs() const override;
 	// --
@@ -141,36 +172,100 @@ protected:
 
 protected:
 	// FlowNodes and AddOns may determine which AddOns are eligible to be their children
-	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "FlowNode")
-	EFlowAddOnAcceptResult AcceptFlowNodeAddOnChild(const UFlowNodeAddOn* AddOnTemplate) const;
+	// - AddOnTemplate - the template of the FlowNodeAddOn that is being considered to be added as a child
+	// - AdditionalAddOnsToAssumeAreChildren - other AddOns to assume that are already child AddOns for the purposes of checking is AddOnTemplate is allowed.
+	//   This list will be populated with the 'other' AddOns in a multi-paste operation in the editor,
+	//   because some paste-targets can only accept a certain mix of addons, so we must know the rest of the set being pasted
+	//   to make the correct decision about whether to allow AddOnTemplate to be added.
+	// https://forums.unrealengine.com/t/default-parameters-with-tarrays/330225 for details on AutoCreateRefTerm
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "FlowNode", meta = (AutoCreateRefTerm = AdditionalAddOnsToAssumeAreChildren))
+	EFlowAddOnAcceptResult AcceptFlowNodeAddOnChild(const UFlowNodeAddOn* AddOnTemplate, const TArray<UFlowNodeAddOn*>& AdditionalAddOnsToAssumeAreChildren) const;
 
 public:
 	virtual const TArray<UFlowNodeAddOn*>& GetFlowNodeAddOnChildren() const { return AddOns; }
 
 #if WITH_EDITOR
 	virtual TArray<UFlowNodeAddOn*>& GetFlowNodeAddOnChildrenByEditor() { return AddOns; }
-	EFlowAddOnAcceptResult CheckAcceptFlowNodeAddOnChild(const UFlowNodeAddOn* AddOnTemplate) const;
+	EFlowAddOnAcceptResult CheckAcceptFlowNodeAddOnChild(const UFlowNodeAddOn* AddOnTemplate, const TArray<UFlowNodeAddOn*>& AdditionalAddOnsToAssumeAreChildren) const;
 #endif // WITH_EDITOR
 
 	// Call a function for all of this object's AddOns (recursively iterating AddOns inside AddOn)
-	void ForEachAddOnConst(const FConstFlowNodeAddOnFunction& Function) const;
-	void ForEachAddOn(const FFlowNodeAddOnFunction& Function) const;
+	EFlowForEachAddOnFunctionReturnValue ForEachAddOnConst(const FConstFlowNodeAddOnFunction& Function) const;
+	EFlowForEachAddOnFunctionReturnValue ForEachAddOn(const FFlowNodeAddOnFunction& Function) const;
 
 	template <typename TInterfaceOrClass>
-	void ForEachAddOnForClassConst(const FConstFlowNodeAddOnFunction Function) const
+	EFlowForEachAddOnFunctionReturnValue ForEachAddOnForClassConst(const FConstFlowNodeAddOnFunction Function) const
 	{
-		ForEachAddOnForClassConst(*TInterfaceOrClass::StaticClass(), Function);
+		return ForEachAddOnForClassConst(*TInterfaceOrClass::StaticClass(), Function);
 	}
 
-	void ForEachAddOnForClassConst(const UClass& InterfaceOrClass, const FConstFlowNodeAddOnFunction& Function) const;
+	EFlowForEachAddOnFunctionReturnValue ForEachAddOnForClassConst(const UClass& InterfaceOrClass, const FConstFlowNodeAddOnFunction& Function) const;
 
 	template <typename TInterfaceOrClass>
-	void ForEachAddOnForClass(const FFlowNodeAddOnFunction Function) const
+	EFlowForEachAddOnFunctionReturnValue ForEachAddOnForClass(const FFlowNodeAddOnFunction Function) const
 	{
-		ForEachAddOnForClass(*TInterfaceOrClass::StaticClass(), Function);
+		return ForEachAddOnForClass(*TInterfaceOrClass::StaticClass(), Function);
 	}
 
-	void ForEachAddOnForClass(const UClass& InterfaceOrClass, const FFlowNodeAddOnFunction& Function) const;
+	EFlowForEachAddOnFunctionReturnValue ForEachAddOnForClass(const UClass& InterfaceOrClass, const FFlowNodeAddOnFunction& Function) const;
+
+public:
+
+//////////////////////////////////////////////////////////////////////////
+// Data Pins
+
+	// Must implement TryResolveDataAs... for every EFlowPinType
+	FLOW_ASSERT_ENUM_MAX(EFlowPinType, 16);
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As Bool")
+	FFlowDataPinResult_Bool TryResolveDataPinAsBool(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As Int")
+	FFlowDataPinResult_Int TryResolveDataPinAsInt(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As Float")
+	FFlowDataPinResult_Float TryResolveDataPinAsFloat(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As Name")
+	FFlowDataPinResult_Name TryResolveDataPinAsName(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As String")
+	FFlowDataPinResult_String TryResolveDataPinAsString(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As Text")
+	FFlowDataPinResult_Text TryResolveDataPinAsText(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As Enum")
+	FFlowDataPinResult_Enum TryResolveDataPinAsEnum(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As Vector")
+	FFlowDataPinResult_Vector TryResolveDataPinAsVector(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As Rotator")
+	FFlowDataPinResult_Rotator TryResolveDataPinAsRotator(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As Transform")
+	FFlowDataPinResult_Transform TryResolveDataPinAsTransform(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As GameplayTag")
+	FFlowDataPinResult_GameplayTag TryResolveDataPinAsGameplayTag(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As GameplayTagContainer")
+	FFlowDataPinResult_GameplayTagContainer TryResolveDataPinAsGameplayTagContainer(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As InstancedStruct")
+	FFlowDataPinResult_InstancedStruct TryResolveDataPinAsInstancedStruct(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As Object")
+	FFlowDataPinResult_Object TryResolveDataPinAsObject(const FName& PinName) const;
+
+	UFUNCTION(BlueprintCallable, Category = DataPins, DisplayName = "Try Resolve DataPin As Class")
+	FFlowDataPinResult_Class TryResolveDataPinAsClass(const FName& PinName) const;
+
+	// Public only for for TResolveDataPinWorkingData's use
+	EFlowDataPinResolveResult TryResolveDataPinPrerequisites(const FName& PinName, const UFlowNode*& FlowNode, const FFlowPin*& FlowPin, EFlowPinType PinType) const;
+
+public:
 
 //////////////////////////////////////////////////////////////////////////
 // Editor
@@ -201,6 +296,8 @@ protected:
 public:
 	UEdGraphNode* GetGraphNode() const { return GraphNode; }
 
+	virtual void PostLoad() override;
+
 #if WITH_EDITOR
 	void SetGraphNode(UEdGraphNode* NewGraphNode);
 
@@ -216,18 +313,31 @@ public:
 	
 	// used when import graph from another asset
 	virtual void PostImport() {}
+
+	// Called by owning FlowNode to add to its Status String.
+	// (may be multi-line)
+	virtual FString GetStatusString() const;
 #endif
+
+protected:
+	// Information displayed while node is working - displayed over node as NodeInfoPopup
+	UFUNCTION(BlueprintImplementableEvent, Category = "FlowNode", meta = (DisplayName = "Get Status String"))
+	FString K2_GetStatusString() const;
 
 #if WITH_EDITORONLY_DATA
 protected:
 	UPROPERTY()
 	FString Category;
 	
-	UPROPERTY(EditDefaultsOnly, Category = "FlowNode")
+	UPROPERTY(EditDefaultsOnly, Category = "FlowNode", meta = (Categories = "Flow.NodeStyle"))
+	FGameplayTag NodeDisplayStyle;
+
+	// Deprecated NodeStyle, replaced by NodeDisplayStyle
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use the NodeDisplayStyle instead."))
 	EFlowNodeStyle NodeStyle;
 
-	// Set Node Style to custom to use your own color for this node
-	UPROPERTY(EditDefaultsOnly, Category = "FlowNode", meta = (EditCondition = "NodeStyle == EFlowNodeStyle::Custom"))
+	// Set Node Style to custom to use your own color for this node (if using Flow.NodeStyle.Custom)
+	UPROPERTY(EditDefaultsOnly, Category = "FlowNode", DisplayName = "Custom Node Color")
 	FLinearColor NodeColor;
 
 	// Optional developer-facing text to explain the configuration of this node when viewed in the editor
@@ -239,7 +349,8 @@ protected:
 #if WITH_EDITOR
 public:
 	virtual FString GetNodeCategory() const;
-	EFlowNodeStyle GetNodeStyle() const;
+
+	const FGameplayTag& GetNodeDisplayStyle() const { return NodeDisplayStyle; }
 
 	// This method allows to have different for every node instance, i.e. Red if node represents enemy, Green if node represents a friend
 	virtual bool GetDynamicTitleColor(FLinearColor& OutColor) const;
@@ -248,6 +359,9 @@ public:
 	virtual FText GetNodeToolTip() const;
 	virtual FText GetNodeConfigText() const;
 	FText GetGeneratedDisplayName() const;
+
+protected:
+	void EnsureNodeDisplayStyle();
 #endif
 
 protected:	
@@ -283,6 +397,9 @@ protected:
 
 	UFUNCTION(BlueprintCallable, Category = "FlowNode", meta = (DevelopmentOnly))
 	void LogNote(FString Message) const;
+
+	UFUNCTION(BlueprintCallable, Category = "FlowNode", meta = (DevelopmentOnly))
+	void LogVerbose(FString Message) const;
 
 #if !UE_BUILD_SHIPPING
 protected:

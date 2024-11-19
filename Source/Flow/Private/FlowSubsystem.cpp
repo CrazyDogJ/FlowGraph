@@ -83,6 +83,8 @@ UFlowAsset* UFlowSubsystem::StartRootFlow(UObject* Owner, UFlowAsset* FlowAsset,
 	{
 		if (UFlowAsset* NewFlow = CreateRootFlow(Owner, FlowAsset, bAllowMultipleInstances))
 		{
+			// todo: (gtaylor) In the future, we may want to provide a way to set a data pin value supplier
+			// for the root flow graph.
 			NewFlow->StartFlow();
 			return NewFlow;
 		}
@@ -97,7 +99,7 @@ UFlowAsset* UFlowSubsystem::StartRootFlow(UObject* Owner, UFlowAsset* FlowAsset,
 	return nullptr;
 }
 
-UFlowAsset* UFlowSubsystem::CreateRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const bool bAllowMultipleInstances, FString NewInstanceName)
+UFlowAsset* UFlowSubsystem::CreateRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const bool bAllowMultipleInstances, const FString& NewInstanceName)
 {
 	for (const TPair<UFlowAsset*, TWeakObjectPtr<UObject>>& RootInstance : RootInstances)
 	{
@@ -162,7 +164,7 @@ void UFlowSubsystem::FinishAllRootFlows(UObject* Owner, const EFlowFinishPolicy 
 	}
 }
 
-UFlowAsset* UFlowSubsystem::CreateSubFlow(UFlowNode_SubGraph* SubGraphNode, const FString SavedInstanceName, const bool bPreloading /* = false */)
+UFlowAsset* UFlowSubsystem::CreateSubFlow(UFlowNode_SubGraph* SubGraphNode, const FString& SavedInstanceName, const bool bPreloading /* = false */)
 {
 	UFlowAsset* NewInstance = nullptr;
 
@@ -193,7 +195,7 @@ UFlowAsset* UFlowSubsystem::CreateSubFlow(UFlowNode_SubGraph* SubGraphNode, cons
 		// don't activate Start Node if we're loading Sub Graph from SaveGame
 		if (SavedInstanceName.IsEmpty())
 		{
-			AssetInstance->StartFlow();
+			AssetInstance->StartFlow(SubGraphNode);
 		}
 	}
 

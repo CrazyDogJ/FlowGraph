@@ -10,7 +10,7 @@ UFlowNode_CustomEventBase::UFlowNode_CustomEventBase(const FObjectInitializer& O
 {
 #if WITH_EDITOR
 	Category = TEXT("Route");
-	NodeStyle = EFlowNodeStyle::InOut;
+	NodeDisplayStyle = FlowNodeStyle::InOut;
 #endif
 
 	AllowedSignalModes = {EFlowSignalMode::Enabled, EFlowSignalMode::Disabled};

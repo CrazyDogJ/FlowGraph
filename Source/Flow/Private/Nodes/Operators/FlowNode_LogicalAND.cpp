@@ -9,7 +9,7 @@ UFlowNode_LogicalAND::UFlowNode_LogicalAND(const FObjectInitializer& ObjectIniti
 {
 #if WITH_EDITOR
 	Category = TEXT("Operators");
-	NodeStyle = EFlowNodeStyle::Logic;
+	NodeDisplayStyle = FlowNodeStyle::Logic;
 #endif
 
 	SetNumberedInputPins(0, 1);

@@ -20,7 +20,6 @@ UFlowNode_ExecuteComponent::UFlowNode_ExecuteComponent()
 	: Super()
 {
 #if WITH_EDITOR
-	NodeStyle = EFlowNodeStyle::Default;
 	Category = TEXT("World");
 #endif // WITH_EDITOR
 }
@@ -211,8 +210,9 @@ bool UFlowNode_ExecuteComponent::TryInjectComponent()
 
 	// Create the component instance
 	TArray<UActorComponent*> ComponentInstances;
+	
+	FLOW_ASSERT_ENUM_MAX(EExecuteComponentSource, 4);
 
-	static_assert(static_cast<int32>(EExecuteComponentSource::Max) == 4, TEXT("Update this code if the enum changes"));
 	switch (ComponentSource)
 	{
 	case EExecuteComponentSource::InjectFromTemplate:
@@ -311,7 +311,8 @@ const UActorComponent* UFlowNode_ExecuteComponent::TryGetExpectedComponent() con
 {
 	const TSubclassOf<AActor> ExpectedOwnerClass = TryGetExpectedActorOwnerClass();
 
-	static_assert(static_cast<int32>(EExecuteComponentSource::Max) == 4, TEXT("Update this code if the enum changes"));
+	FLOW_ASSERT_ENUM_MAX(EExecuteComponentSource, 4);
+
 	switch (ComponentSource)
 	{
 	case EExecuteComponentSource::Undetermined:
@@ -475,7 +476,8 @@ FText UFlowNode_ExecuteComponent::GetNodeTitle() const
 {
 	if (UFlowSettings::Get()->bUseAdaptiveNodeTitles)
 	{
-		static_assert(static_cast<int32>(EExecuteComponentSource::Max) == 4, TEXT("Update this code if the enum changes"));
+		FLOW_ASSERT_ENUM_MAX(EExecuteComponentSource, 4);
+
 		switch (ComponentSource)
 		{
 		case EExecuteComponentSource::Undetermined:
@@ -535,7 +537,8 @@ void UFlowNode_ExecuteComponent::UpdateNodeConfigText_Implementation()
 	const bool bUseAdaptiveNodeTitles = UFlowSettings::Get()->bUseAdaptiveNodeTitles;
 	if (!bUseAdaptiveNodeTitles)
 	{
-		static_assert(static_cast<int32>(EExecuteComponentSource::Max) == 4, TEXT("Update this code if the enum changes"));
+		FLOW_ASSERT_ENUM_MAX(EExecuteComponentSource, 4);
+
 		switch (ComponentSource)
 		{
 		case EExecuteComponentSource::Undetermined:

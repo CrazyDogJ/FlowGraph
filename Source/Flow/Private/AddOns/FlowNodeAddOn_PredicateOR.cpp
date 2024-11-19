@@ -8,12 +8,14 @@ UFlowNodeAddOn_PredicateOR::UFlowNodeAddOn_PredicateOR()
 	: Super()
 {
 #if WITH_EDITOR
-	NodeStyle = EFlowNodeStyle::Logic;
+	NodeDisplayStyle = FlowNodeStyle::AddOn_Predicate_Composite;
 	Category = TEXT("Composite");
 #endif
 }
 
-EFlowAddOnAcceptResult UFlowNodeAddOn_PredicateOR::AcceptFlowNodeAddOnChild_Implementation(const UFlowNodeAddOn* AddOnTemplate) const
+EFlowAddOnAcceptResult UFlowNodeAddOn_PredicateOR::AcceptFlowNodeAddOnChild_Implementation(
+	const UFlowNodeAddOn* AddOnTemplate,
+	const TArray<UFlowNodeAddOn*>& AdditionalAddOnsToAssumeAreChildren) const
 {
 	if (IFlowPredicateInterface::ImplementsInterfaceSafe(AddOnTemplate))
 	{

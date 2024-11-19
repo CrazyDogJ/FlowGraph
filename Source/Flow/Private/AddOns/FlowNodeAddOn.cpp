@@ -7,6 +7,13 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(FlowNodeAddOn)
 
+UFlowNodeAddOn::UFlowNodeAddOn()
+{
+#if WITH_EDITOR
+	NodeDisplayStyle = FlowNodeStyle::AddOn;
+#endif
+}
+
 void UFlowNodeAddOn::InitializeInstance()
 {
 	CacheFlowNode();
@@ -45,7 +52,9 @@ void UFlowNodeAddOn::Finish()
 	}
 }
 
-EFlowAddOnAcceptResult UFlowNodeAddOn::AcceptFlowNodeAddOnParent_Implementation(const UFlowNodeBase* ParentTemplate) const
+EFlowAddOnAcceptResult UFlowNodeAddOn::AcceptFlowNodeAddOnParent_Implementation(
+	const UFlowNodeBase* ParentTemplate,
+	const TArray<UFlowNodeAddOn*>& AdditionalAddOnsToAssumeAreChildren) const
 {
 	// Subclasses may override this function to opt in to parent classes
 	return EFlowAddOnAcceptResult::Undetermined;
@@ -94,3 +103,19 @@ void UFlowNodeAddOn::CacheFlowNode()
 
 	ensureAsRuntimeWarning(FlowNode);
 }
+
+#if WITH_EDITOR
+TArray<FFlowPin> UFlowNodeAddOn::GetContextInputs() const
+{
+	TArray<FFlowPin> ContextPins = Super::GetContextInputs();
+	ContextPins.Append(InputPins);
+	return ContextPins;
+}
+
+TArray<FFlowPin> UFlowNodeAddOn::GetContextOutputs() const
+{
+	TArray<FFlowPin> ContextPins = Super::GetContextOutputs();
+	ContextPins.Append(OutputPins);
+	return ContextPins;
+}
+#endif // WITH_EDITOR

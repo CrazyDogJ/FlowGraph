@@ -8,14 +8,16 @@ UFlowNodeAddOn_PredicateNOT::UFlowNodeAddOn_PredicateNOT()
 	: Super()
 {
 #if WITH_EDITOR
-	NodeStyle = EFlowNodeStyle::Logic;
+	NodeDisplayStyle = FlowNodeStyle::AddOn_Predicate_Composite;
 	Category = TEXT("Composite");
 #endif
 }
 
-EFlowAddOnAcceptResult UFlowNodeAddOn_PredicateNOT::AcceptFlowNodeAddOnChild_Implementation(const UFlowNodeAddOn* AddOnTemplate) const
+EFlowAddOnAcceptResult UFlowNodeAddOn_PredicateNOT::AcceptFlowNodeAddOnChild_Implementation(
+	const UFlowNodeAddOn* AddOnTemplate,
+	const TArray<UFlowNodeAddOn*>& AdditionalAddOnsToAssumeAreChildren) const
 {
-	if (AddOns.Num() >= 1)
+	if (AddOns.Num() >= 1 || !AdditionalAddOnsToAssumeAreChildren.IsEmpty())
 	{
 		// Must not have more than one child Add-On under any circumstances
 		return EFlowAddOnAcceptResult::Reject;
