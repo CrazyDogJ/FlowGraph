@@ -37,9 +37,22 @@ void UDialogueComponent_Base::OnDialogueNodeStartEvent(UFlowNode_Dialogue* Dialo
 	{
 		if (Character->IsLocallyControlled() && DialogueNode->DialogueCameraCalculation && !Character->IsBotControlled())
 		{
-			CurrentCamera = GetWorld()->SpawnActor<ACustomSpringCamera>(ACustomSpringCamera::StaticClass());
-			CurrentCamera->DialogueCameraCalculation = DialogueNode->DialogueCameraCalculation;
-			IDialogueCameraInterface::Execute_SetNewViewTarget(UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0), CurrentCamera);
+			if (CurrentCamera)
+			{
+				CurrentCamera->Destroy();
+				CurrentCamera = nullptr;
+			}
+			
+			if (DialogueNode->DialogueCameraCalculation->bSpawnNewCamera)
+			{
+				CurrentCamera = GetWorld()->SpawnActor<ACustomSpringCamera>(ACustomSpringCamera::StaticClass());
+				CurrentCamera->DialogueCameraCalculation = DialogueNode->DialogueCameraCalculation;
+				IDialogueCameraInterface::Execute_SetNewViewTarget(UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0), CurrentCamera);
+			}
+			else
+			{
+				IDialogueCameraInterface::Execute_SetNewViewTarget(UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0), DialogueNode->DialogueCameraCalculation->GetViewActor());
+			}
 		}
 	}
 

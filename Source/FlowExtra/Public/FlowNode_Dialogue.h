@@ -7,6 +7,8 @@
 #include "FlowNode_NotifySpecificActor.h"
 #include "FlowNode_Dialogue.generated.h"
 
+class UDialogueExtraBehaviour;
+
 USTRUCT(BlueprintType)
 struct FDialogueAnimation
 {
@@ -46,6 +48,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Flow|Animation")
 	TMap<FGameplayTag, FDialogueAnimation> DialogueAnimation;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Flow|Extra")
+	TArray<UDialogueExtraBehaviour*> DialogueExtraBehaviours;
 #pragma endregion
 
 #pragma region Functions

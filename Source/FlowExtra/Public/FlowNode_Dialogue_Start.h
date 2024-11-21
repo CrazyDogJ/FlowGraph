@@ -34,7 +34,7 @@ public:
 	 * Center actor;
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FGameplayTag CenterActorTag = UGameplayTagsManager::Get().AddNativeGameplayTag(TEXT("Flow.DialogInvolver.Player"));;
+	FGameplayTag CenterActorTag = FGameplayTag::RequestGameplayTag(TEXT("Flow.DialogInvolver.Player"));
 	
 	UPROPERTY(BlueprintReadOnly)
 	TMap<FGameplayTag, TObjectPtr<AActor>> IdentityActors;

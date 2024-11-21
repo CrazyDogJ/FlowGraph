@@ -3,7 +3,7 @@
 
 #include "DialogueCameraCalculation.h"
 
-void UDialogueCameraCalculation::CalculateCamera_Implementation(FVector& Location, FRotator& Rotation, float& FOV, FVector& PivotLocation)
+void UDialogueCameraCalculation::CalculateCamera_Implementation(float DeltaTime, FVector& Location, FRotator& Rotation, float& FOV, FVector& PivotLocation)
 {
 	Location = FVector::Zero();
 	Rotation = FRotator::ZeroRotator;
@@ -14,4 +14,14 @@ void UDialogueCameraCalculation::CalculateCamera_Implementation(FVector& Locatio
 TArray<AActor*> UDialogueCameraCalculation::GetIgnoreActors_Implementation()
 {
 	return TArray<AActor*>();
+}
+
+AActor* UDialogueCameraCalculation::GetViewActor_Implementation()
+{
+	return nullptr;
+}
+
+FPostProcessSettings UDialogueCameraCalculation::CalculateCameraPostProcess_Implementation(float DeltaTime, float& BlendAlpha)
+{
+	return FPostProcessSettings();
 }

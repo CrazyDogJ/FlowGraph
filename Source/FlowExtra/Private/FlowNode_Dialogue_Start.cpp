@@ -9,9 +9,6 @@
 
 UFlowNode_Dialogue_Start::UFlowNode_Dialogue_Start()
 {
-	UGameplayTagsManager& TagsManager = UGameplayTagsManager::Get();
-	TagsManager.AddNativeGameplayTag(TEXT("Flow.DialogInvolver.DialogOwner"));
-	TagsManager.AddNativeGameplayTag(TEXT("Flow.DialogInvolver.Player"));
 }
 
 FString UFlowNode_Dialogue_Start::GetNodeDescription() const

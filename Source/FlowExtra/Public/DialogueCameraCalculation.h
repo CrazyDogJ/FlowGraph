@@ -22,10 +22,19 @@ public:
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	TArray<FGameplayTag> IdentityTags;
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere)
+	bool bSpawnNewCamera = true;
 	
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-	void CalculateCamera(FVector& Location, FRotator& Rotation, float& FOV, FVector& PivotLocation);
+	void CalculateCamera(float DeltaTime, FVector& Location, FRotator& Rotation, float& FOV, FVector& PivotLocation);
 
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+	FPostProcessSettings CalculateCameraPostProcess(float DeltaTime, float& BlendAlpha);
+	
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+	AActor* GetViewActor();
+	
 	UFUNCTION(BlueprintNativeEvent, BlueprintPure)
 	TArray<AActor*> GetIgnoreActors();
 

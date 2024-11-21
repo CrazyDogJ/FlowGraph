@@ -2,7 +2,7 @@
 
 
 #include "FlowNode_Dialogue.h"
-
+#include "DialogueExtraBehaviour.h"
 #include "DialogueComponent_Base.h"
 #include "FlowExtraFunctionLibrary.h"
 
@@ -47,6 +47,11 @@ void UFlowNode_Dialogue::ExecuteInput(const FName& PinName)
 			Comp->OnDialogueNodeStart.Broadcast(this);
 		}
 	}
+
+	for (auto ExtraBehaviour : DialogueExtraBehaviours)
+	{
+		ExtraBehaviour->OnDialogueNodeStart(this);
+	}
 	
 	Super::ExecuteInput(PinName);
 }
@@ -65,6 +70,11 @@ void UFlowNode_Dialogue::Finish()
 		{
 			Comp->OnDialogueNodeEnd.Broadcast(this);
 		}
+	}
+
+	for (auto ExtraBehaviour : DialogueExtraBehaviours)
+	{
+		ExtraBehaviour->OnDialogueNodeEnd(this);
 	}
 	
 	Super::Finish();
