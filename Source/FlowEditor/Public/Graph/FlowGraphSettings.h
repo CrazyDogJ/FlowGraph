@@ -18,7 +18,7 @@ struct FFlowNodeDisplayStyleConfig
 
 public:
 	FFlowNodeDisplayStyleConfig()
-		: TitleColor()
+		: TitleColor(FLinearColor::White)
 	{
 	}
 
@@ -58,6 +58,7 @@ UCLASS(Config = Editor, defaultconfig, meta = (DisplayName = "Flow Graph"))
 class FLOWEDITOR_API UFlowGraphSettings : public UDeveloperSettings
 {
 	GENERATED_UCLASS_BODY()
+
 	static UFlowGraphSettings* Get() { return StaticClass()->GetDefaultObject<UFlowGraphSettings>(); }
 
 	virtual void PostInitProperties() override;

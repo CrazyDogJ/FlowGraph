@@ -228,7 +228,7 @@ public:
 
 	// Class for this enum
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = DataPins)
-	UEnum* EnumClass = nullptr;
+	TObjectPtr<UEnum> EnumClass = nullptr;
 
 #if WITH_EDITORONLY_DATA
 	// name of enum defined in c++ code, will take priority over asset from EnumType property
@@ -263,7 +263,7 @@ struct FFlowDataPinOutputProperty_Vector : public FFlowDataPinProperty
 public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = DataPins)
-	FVector Value;
+	FVector Value = FVector::ZeroVector;
 
 public:
 
@@ -282,7 +282,7 @@ struct FFlowDataPinOutputProperty_Rotator : public FFlowDataPinProperty
 public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = DataPins)
-	FRotator Value;
+	FRotator Value = FRotator::ZeroRotator;
 
 public:
 

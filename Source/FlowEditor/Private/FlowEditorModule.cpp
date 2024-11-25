@@ -120,8 +120,7 @@ void FFlowEditorModule::TrySetFlowNodeDisplayStyleDefaults() const
 	FModuleManager::LoadModuleChecked<FFlowModule>("Flow");
 
 	UFlowGraphSettings& Settings = *UFlowGraphSettings::Get();
-	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::Base, FLinearColor(0.0f, 0.581f, 1.0f, 1.0f)));
-
+	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::Node, FLinearColor(0.0f, 0.581f, 1.0f, 1.0f)));
 	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::Condition, FLinearColor(1.0f, 0.62f, 0.016f, 1.0f)));
 	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::Deprecated, FLinearColor(1.0f, 1.0f, 0.0f, 1.0f)));
 	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::Developer, FLinearColor(0.7f, 0.2f, 1.0f, 1.0f)));
@@ -131,10 +130,10 @@ void FFlowEditorModule::TrySetFlowNodeDisplayStyleDefaults() const
 	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::SubGraph, FLinearColor(1.0f, 0.128f, 0.0f, 1.0f)));
 	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::Terminal, FLinearColor(1.0f, 0.0f, 0.008f, 1.0f)));
 
-	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::AddOn, FLinearColor(0.0f, 0.581f, 1.0f, 1.0f))); // !!! Update this
+	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::AddOn, FLinearColor(0.0f, 0.581f, 1.0f, 1.0f)));
 	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::AddOn_PerSpawnedActor, FLinearColor(0.3f, 0.3f, 1.0f, 1.0f)));
 	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::AddOn_Predicate, FLinearColor(1.0f, 1.0f, 1.0f, 1.0f)));
-	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::AddOn_Predicate_Composite, FLinearColor(1.0f, 1.0f, 1.0f, 1.0f))); // !!! Update this
+	(void) Settings.TryAddDefaultNodeDisplayStyle(FFlowNodeDisplayStyleConfig(FlowNodeStyle::AddOn_Predicate_Composite, FLinearColor(1.0f, 1.0f, 1.0f, 1.0f)));
 }
 
 void FFlowEditorModule::RegisterAssets()

@@ -15,6 +15,8 @@ public class FlowEditor : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new[]
 		{
+			"AssetSearch",
+			"EditorSubsystem",
 			"Flow",
 			"MessageLog",
 			"AIModule", // For BlueprintNodeHelpers::DescribeProperty (could be copy/pasted out to remove editor-only dependency)
@@ -24,7 +26,6 @@ public class FlowEditor : ModuleRules
 		{
 			"ApplicationCore",
 			"AssetDefinition",
-			"AssetSearch",
 			"AssetTools",
 			"BlueprintGraph",
 			"ClassViewer",

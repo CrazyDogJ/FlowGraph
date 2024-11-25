@@ -5,7 +5,8 @@
 UE_DEFINE_GAMEPLAY_TAG(FlowNodeStyle::CategoryName, "Flow.NodeStyle");
 UE_DEFINE_GAMEPLAY_TAG(FlowNodeStyle::Custom, "Flow.NodeStyle.Custom");
 
-UE_DEFINE_GAMEPLAY_TAG(FlowNodeStyle::Base, "Flow.NodeStyle.Base");
+UE_DEFINE_GAMEPLAY_TAG(FlowNodeStyle::Node, "Flow.NodeStyle.Node");
+UE_DEFINE_GAMEPLAY_TAG(FlowNodeStyle::Default, "Flow.NodeStyle.Node.Default");
 UE_DEFINE_GAMEPLAY_TAG(FlowNodeStyle::Condition, "Flow.NodeStyle.Node.Condition");
 UE_DEFINE_GAMEPLAY_TAG(FlowNodeStyle::Deprecated, "Flow.NodeStyle.Node.Deprecated");
 UE_DEFINE_GAMEPLAY_TAG(FlowNodeStyle::Developer, "Flow.NodeStyle.Node.Developer");

@@ -36,6 +36,7 @@ UFlowNode::UFlowNode(const FObjectInitializer& ObjectInitializer)
 {
 #if WITH_EDITOR
 	Category = TEXT("Uncategorized");
+	NodeDisplayStyle = FlowNodeStyle::Default;
 #endif
 
 	InputPins = {DefaultInputPin};
@@ -640,7 +641,7 @@ bool UFlowNode::FindConnectedNodeForPinSlow(const FName& PinName, FGuid* OutGuid
 		return false;
 	}
 
-	for (const TPair<FGuid, UFlowNode*>& Pair : FlowAsset->Nodes)
+	for (const TPair<FGuid, UFlowNode*>& Pair : ObjectPtrDecay(FlowAsset->Nodes))
 	{
 		const FGuid& ConnectedFromGuid = Pair.Key;
 		const UFlowNode* ConnectedFromFlowNode = Pair.Value;
