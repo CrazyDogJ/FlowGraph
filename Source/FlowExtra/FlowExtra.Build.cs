@@ -22,7 +22,8 @@ public class FlowExtra : ModuleRules
                 "SlateCore",
                 "Flow",
                 "GameplayTags",
-                "UMG"
+                "UMG",
+                "NetCore"
             }
         );
     }

@@ -3,86 +3,20 @@
 
 #include "FlowNode_QuestCommon.h"
 
-void UFlowNode_QuestCommon::ExecuteInput(const FName& PinName)
+#include "FlowAsset.h"
+#include "QuestGlobalComponent.h"
+
+UFlowNode_QuestCommon::UFlowNode_QuestCommon()
 {
-	if (IdentityTags.IsValid())
-	{
-		if (PinName == TEXT("Start"))
-		{
-			StartObserving();
-			bGoalActivated = true;
-		}
-		else if (PinName == TEXT("Stop"))
-		{
-			bGoalActivated = false;
-		}
-		Execute_K2_ExecuteInput(Cast<UObject>(this), PinName);
-	}
-	else
-	{
-		LogError(MissingIdentityTag);
-	}
+	InputPins = {FFlowPin(TEXT("Start")), FFlowPin(TEXT("Stop"))};
+	OutputPins = {FFlowPin(TEXT("Success")), FFlowPin(TEXT("Completed")), FFlowPin(TEXT("Stopped"))};
+
 }
 
-void UFlowNode_QuestCommon::OnEventReceived()
+void UFlowNode_QuestCommon::MarkThisGoalDirty(bool bFinished)
 {
-	K2_OnEventReceived();
-
-	SuccessCount++;
-	if (SuccessLimit > 0 && SuccessCount == SuccessLimit)
-	{
-		K2_OnEventCompleted();
-	}
-}
-
-void UFlowNode_QuestCommon::Cleanup()
-{
-	Super::Cleanup();
-
-	K2_Cleanup();
-}
-
-void UFlowNode_QuestCommon::OnLoad_Implementation()
-{
-	Super::OnLoad_Implementation();
-
-	K2_OnActivate();
-}
-
-void UFlowNode_QuestCommon::ObserveActor(TWeakObjectPtr<AActor> Actor, TWeakObjectPtr<UFlowComponent> Component)
-{
-	bool bContain = true;
-	if (!RegisteredActors.Contains(Actor))
-	{
-		bContain = false;
-	}
-	
-	Super::ObserveActor(Actor, Component);
-
-	if (RegisteredActors.Contains(Actor) && !bContain)
-	{
-		K2_HasAnyGoalActors();
-	}
-}
-
-void UFlowNode_QuestCommon::ForgetActor(TWeakObjectPtr<AActor> Actor, TWeakObjectPtr<UFlowComponent> Component)
-{
-	Super::ForgetActor(Actor, Component);
-	
-	if (!RegisteredActors.Contains(Actor))
-	{
-		K2_HasNoGoalActors();
-	}
-}
-
-FGameplayTagContainer UFlowNode_QuestCommon::GetNotifyTags()
-{
-	return NotifyTags;
-}
-
-FGameplayTagContainer UFlowNode_QuestCommon::GetIdentityTags()
-{
-	return IdentityTags;
+	auto QuestComp = Cast<UQuestGlobalComponent>(GetFlowAsset()->GetOwner());
+	QuestComp->MarkGoalDirty(this, bFinished);
 }
 
 #if WITH_EDITOR

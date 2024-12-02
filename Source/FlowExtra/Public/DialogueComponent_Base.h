@@ -30,7 +30,7 @@ enum EDialogRole : uint8
 };
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class FLOWEXTRA_API UDialogueComponent_Base : public UFlowComponent
+class FLOWEXTRA_API UDialogueComponent_Base : public UActorComponent
 {
 	GENERATED_BODY()
 

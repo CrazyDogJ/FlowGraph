@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "FlowNode_Dialogue.h"
 #include "FlowNode_Dialogue_Start.h"
+#include "FlowNode_QuestCommon.h"
+#include "FlowNode_QuestInfo.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "FlowExtraFunctionLibrary.generated.h"
 
@@ -34,4 +36,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = Flow)
 	static UFlowNode_Dialogue_Start* GetCurrentDialogueInfos(UFlowAsset* FlowInstance);
+
+	UFUNCTION(BlueprintCallable, Category = Flow)
+	static UFlowNode_QuestInfo* GetCurrentQuestInfo(UFlowAsset* FlowInstance);
+
+	UFUNCTION(BlueprintCallable, Category = Flow)
+	static void CompareArray(TArray<UFlowNode_QuestCommon*> ArrayA, TArray<UFlowNode_QuestCommon*> ArrayB,
+	                         TArray<UFlowNode_QuestCommon*>& Add, TArray<UFlowNode_QuestCommon*>& Remove,
+	                         TArray<UFlowNode_QuestCommon*>& Unchanged);
 };

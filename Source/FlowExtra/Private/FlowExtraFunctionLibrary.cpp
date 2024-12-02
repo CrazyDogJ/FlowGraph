@@ -80,3 +80,60 @@ UFlowNode_Dialogue_Start* UFlowExtraFunctionLibrary::GetCurrentDialogueInfos(UFl
 
 	return nullptr;
 }
+
+UFlowNode_QuestInfo* UFlowExtraFunctionLibrary::GetCurrentQuestInfo(UFlowAsset* FlowInstance)
+{
+	if (FlowInstance)
+	{
+		for (auto Node : FlowInstance->GetNodes())
+		{
+			if (auto FindNode = Cast<UFlowNode_QuestInfo>(Node.Value))
+			{
+				return FindNode;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+void UFlowExtraFunctionLibrary::CompareArray(TArray<UFlowNode_QuestCommon*> ArrayA, TArray<UFlowNode_QuestCommon*> ArrayB,
+							 TArray<UFlowNode_QuestCommon*>& Add, TArray<UFlowNode_QuestCommon*>& Remove,
+							 TArray<UFlowNode_QuestCommon*>& Unchanged)
+{
+	TArray<UFlowNode_QuestCommon*> SortedA = ArrayA;
+	TArray<UFlowNode_QuestCommon*> SortedB = ArrayB;
+	Algo::Sort(SortedA);
+	Algo::Sort(SortedB);
+	
+	int32 IndexA = 0, IndexB = 0;
+	while (IndexA < SortedA.Num() && IndexB < SortedB.Num())
+	{
+		if (SortedA[IndexA] < SortedB[IndexB])
+		{
+			Remove.Add(SortedA[IndexA]);
+			IndexA++;
+		}
+		else if (SortedA[IndexA] > SortedB[IndexB])
+		{
+			Add.Add(SortedB[IndexB]);
+			IndexB++;
+		}
+		else
+		{
+			Unchanged.Add(SortedA[IndexA]);
+			IndexA++;
+			IndexB++;
+		}
+	}
+
+	// 处理剩余的元素
+	for (; IndexA < SortedA.Num(); IndexA++)
+	{
+		Remove.Add(SortedA[IndexA]);
+	}
+	for (; IndexB < SortedB.Num(); IndexB++)
+	{
+		Add.Add(SortedB[IndexB]);
+	}
+}

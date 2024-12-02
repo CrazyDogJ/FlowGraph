@@ -6,6 +6,7 @@
 #include "CustomSpringCamera.h"
 #include "DialogueCameraInterface.h"
 #include "DialogueWidget.h"
+#include "FlowAsset.h"
 #include "FlowExtraFunctionLibrary.h"
 #include "FlowSubsystem.h"
 #include "Blueprint/UserWidget.h"
@@ -211,6 +212,29 @@ void UDialogueComponent_Base::SetupVariables(UPrimitiveComponent* InPrimitiveCom
 
 void UDialogueComponent_Base::StartDialogue(UFlowAsset* FlowAsset, AActor* InteractedCharacter)
 {
+	// invalid ptr
+	if (!FlowAsset || !InteractedCharacter)
+	{
+		return;
+	}
+
+	// Check is a dialogue flow asset
+	bool bIsDialogueFlow = false;
+	for (auto NodeItr : FlowAsset->GetNodes())
+	{
+		if (Cast<UFlowNode_Dialogue_Start>(NodeItr.Value))
+		{
+			bIsDialogueFlow = true;
+			break;
+		}
+	}
+	if (!bIsDialogueFlow)
+	{
+		UE_LOG(LogTemp, Error, TEXT("You are trying to start a invalid dialogue flow. Please check whether %s has a Dialogue_Start node."), *FlowAsset->GetName());
+		return;
+	}
+
+	//Start
 	if (auto FlowInstance = GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>()->StartRootFlow(this, FlowAsset))
 	{
 		if (auto Node = UFlowExtraFunctionLibrary::GetCurrentDialogueInfos(FlowInstance))
@@ -227,7 +251,13 @@ void UDialogueComponent_Base::StartDialogue(UFlowAsset* FlowAsset, AActor* Inter
 
 bool UDialogueComponent_Base::FindRole(FGameplayTag InTag) const
 {
-	return	(CurrentRole == EDR_Player && InTag ==  UGameplayTagsManager::Get().RequestGameplayTag(TEXT("Flow.DialogInvolver.Player"))) ||
-			(CurrentRole == EDR_DialogueOwner && InTag ==  UGameplayTagsManager::Get().RequestGameplayTag(TEXT("Flow.DialogInvolver.DialogOwner"))) ||
-			(CurrentRole == EDR_Extra && IdentityTags.HasTag(InTag));
+	const bool bIsPlayer = CurrentRole == EDR_Player && InTag ==  UGameplayTagsManager::Get().RequestGameplayTag(TEXT("Flow.DialogInvolver.Player"));
+	const bool bIsDialogueOwner = CurrentRole == EDR_DialogueOwner && InTag ==  UGameplayTagsManager::Get().RequestGameplayTag(TEXT("Flow.DialogInvolver.DialogOwner"));
+	bool bIsExtraInvolver = false;
+	if (auto FlowComp = Cast<UFlowComponent>(GetOwner()->GetComponentByClass(UFlowComponent::StaticClass())))
+	{
+		bIsExtraInvolver = CurrentRole == EDR_Extra && FlowComp->IdentityTags.HasTag(InTag);
+	}
+	
+	return bIsPlayer || bIsDialogueOwner || bIsExtraInvolver;
 }

@@ -10,11 +10,13 @@
  * 
  */
 UCLASS(Blueprintable)
-class FLOWEXTRA_API UFlowNode_QuestCommon : public UFlowNode_OnNotifyFromActor
+class FLOWEXTRA_API UFlowNode_QuestCommon : public UFlowNode
 {
 	GENERATED_BODY()
 
 public:
+	UFlowNode_QuestCommon();
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Quest)
 	FGameplayTagContainer MapPinActorIdentifyTags;
 
@@ -30,10 +32,15 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category=Quest)
 	bool bGoalFinished;
 
-	virtual void ExecuteInput(const FName& PinName) override;
-	
-	virtual void OnEventReceived() override;
+	UFUNCTION(BlueprintImplementableEvent, Category=Quest)
+	FText GetGoalDesc();
 
+	UFUNCTION(BlueprintCallable, Category=Quest)
+	void MarkThisGoalDirty(bool bFinished);
+	
+	UFUNCTION(BlueprintImplementableEvent, Category=Quest)
+	void OnNotify(UObject* Object1, UObject* Object2);
+	
 	UFUNCTION(BlueprintImplementableEvent, Category=Quest, DisplayName=OnReceived)
 	void K2_OnEventReceived();
 	
@@ -45,20 +52,6 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, Category=Quest, DisplayName=HasNoGoalActors)
 	void K2_HasNoGoalActors();
-	
-	virtual void Cleanup() override;
-
-	virtual void OnLoad_Implementation() override;
-
-	virtual void ObserveActor(TWeakObjectPtr<AActor> Actor, TWeakObjectPtr<UFlowComponent> Component) override;
-	virtual void ForgetActor(TWeakObjectPtr<AActor> Actor, TWeakObjectPtr<UFlowComponent> Component) override;
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Notify")
-	FGameplayTagContainer GetNotifyTags();
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Notify")
-	FGameplayTagContainer GetIdentityTags();
-	
 #if WITH_EDITOR
 public:
 	virtual FString GetNodeDescription() const override;
