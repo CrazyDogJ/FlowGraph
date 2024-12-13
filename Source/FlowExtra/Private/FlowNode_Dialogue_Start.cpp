@@ -9,6 +9,9 @@
 
 UFlowNode_Dialogue_Start::UFlowNode_Dialogue_Start()
 {
+#if WITH_EDITOR
+	Category = TEXT("Dialogue");
+#endif
 }
 
 FString UFlowNode_Dialogue_Start::GetNodeDescription() const

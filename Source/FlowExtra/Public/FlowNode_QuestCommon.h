@@ -6,6 +6,15 @@
 #include "Nodes/World/FlowNode_OnNotifyFromActor.h"
 #include "FlowNode_QuestCommon.generated.h"
 
+UENUM(BlueprintType)
+enum EGoalState : uint8
+{
+	EGS_Ongoing = 0		UMETA(DisplayName = "Goal Ongoing"),
+	EGS_Success = 1		UMETA(DisplayName = "Goal Successed"),
+	EGS_Failed = 2		UMETA(DisplayName = "Goal Failed"),
+	EGS_Stopped = 3		UMETA(DisplayName = "Goal Stopped"),
+};
+
 /**
  * 
  */
@@ -26,17 +35,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Quest)
 	TArray<FVector> StaticQuestGoalLocation;
 
-	UPROPERTY(BlueprintReadWrite, Category=Quest)
-	bool bGoalActivated;
-
-	UPROPERTY(BlueprintReadWrite, Category=Quest)
-	bool bGoalFinished;
-
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category=Quest, SaveGame)
+	TEnumAsByte<EGoalState> CurrentGoalState = EGS_Ongoing;
+	
 	UFUNCTION(BlueprintImplementableEvent, Category=Quest)
 	FText GetGoalDesc();
 
 	UFUNCTION(BlueprintCallable, Category=Quest)
-	void MarkThisGoalDirty(bool bFinished);
+	void MarkThisGoalDirty(TEnumAsByte<EGoalState> GoalState);
 	
 	UFUNCTION(BlueprintImplementableEvent, Category=Quest)
 	void OnNotify(UObject* Object1, UObject* Object2);
@@ -52,6 +58,9 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, Category=Quest, DisplayName=HasNoGoalActors)
 	void K2_HasNoGoalActors();
+
+	virtual void ExecuteInput(const FName& PinName) override;
+	virtual void OnLoad_Implementation() override;
 #if WITH_EDITOR
 public:
 	virtual FString GetNodeDescription() const override;

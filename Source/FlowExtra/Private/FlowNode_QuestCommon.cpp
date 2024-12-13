@@ -10,13 +10,38 @@ UFlowNode_QuestCommon::UFlowNode_QuestCommon()
 {
 	InputPins = {FFlowPin(TEXT("Start")), FFlowPin(TEXT("Stop"))};
 	OutputPins = {FFlowPin(TEXT("Success")), FFlowPin(TEXT("Completed")), FFlowPin(TEXT("Stopped"))};
-
+#if WITH_EDITOR
+	Category = TEXT("Quest");
+#endif
 }
 
-void UFlowNode_QuestCommon::MarkThisGoalDirty(bool bFinished)
+void UFlowNode_QuestCommon::MarkThisGoalDirty(TEnumAsByte<EGoalState> GoalState)
 {
+	CurrentGoalState = GoalState;
 	auto QuestComp = Cast<UQuestGlobalComponent>(GetFlowAsset()->GetOwner());
-	QuestComp->MarkGoalDirty(this, bFinished);
+	QuestComp->MarkGoalDirty(this, GoalState);
+}
+
+void UFlowNode_QuestCommon::ExecuteInput(const FName& PinName)
+{
+	Super::ExecuteInput(PinName);
+	
+	if (PinName == TEXT("Start"))
+	{
+		MarkThisGoalDirty(EGS_Ongoing);
+	}
+	else if (PinName == TEXT("Stop"))
+	{
+		MarkThisGoalDirty(EGS_Stopped);
+		TriggerOutput(TEXT("Stopped"), true);
+	}
+}
+
+void UFlowNode_QuestCommon::OnLoad_Implementation()
+{
+	Super::OnLoad_Implementation();
+
+	MarkThisGoalDirty(CurrentGoalState);
 }
 
 #if WITH_EDITOR

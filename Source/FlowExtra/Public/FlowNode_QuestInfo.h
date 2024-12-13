@@ -15,6 +15,8 @@ class FLOWEXTRA_API UFlowNode_QuestInfo : public UFlowNode
 	GENERATED_BODY()
 
 public:
+	UFlowNode_QuestInfo();
+	
 	virtual void ExecuteInput(const FName& PinName) override;
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)

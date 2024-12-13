@@ -7,6 +7,13 @@
 #include "FlowAsset.h"
 #include "FlowExtraFunctionLibrary.h"
 
+UFlowNode_Dialogue_End::UFlowNode_Dialogue_End()
+{
+#if WITH_EDITOR
+	Category = TEXT("Dialogue");
+#endif
+}
+
 void UFlowNode_Dialogue_End::ExecuteInput(const FName& PinName)
 {
 	auto StartNode = UFlowExtraFunctionLibrary::GetCurrentDialogueInfos(GetFlowAsset());

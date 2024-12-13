@@ -13,6 +13,8 @@ UCLASS()
 class FLOWEXTRA_API UFlowNode_Dialogue_End : public UFlowNode
 {
 	GENERATED_BODY()
+
+	UFlowNode_Dialogue_End();
 	
 public:
 	virtual void ExecuteInput(const FName& PinName) override;

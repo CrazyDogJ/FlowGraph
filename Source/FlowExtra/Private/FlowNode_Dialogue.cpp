@@ -26,6 +26,13 @@ void UFlowNode_Dialogue::ContinueDialogue_Implementation(int SelectionIndex)
 	}
 }
 
+UFlowNode_Dialogue::UFlowNode_Dialogue()
+{
+#if WITH_EDITOR
+	Category = TEXT("Dialogue");
+#endif
+}
+
 bool UFlowNode_Dialogue::HasOptions() const
 {
 	return Options.Num() > 0;

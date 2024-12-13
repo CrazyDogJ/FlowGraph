@@ -54,6 +54,8 @@ public:
 #pragma endregion
 
 #pragma region Functions
+	UFlowNode_Dialogue();
+	
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Flow")
 	void ContinueDialogue(int SelectionIndex);
 	

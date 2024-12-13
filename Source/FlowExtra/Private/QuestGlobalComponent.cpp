@@ -23,28 +23,10 @@ void UQuestGlobalComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	DOREPLIFETIME(UQuestGlobalComponent, GoalInfoList)
 }
 
-bool UQuestGlobalComponent::IsQuestFlowValid(UFlowAsset* QuestFlowTemplate)
+void UQuestGlobalComponent::MarkGoalDirty(UFlowNode_QuestCommon* QuestCommonNodePtr, TEnumAsByte<EGoalState> GoalState)
 {
-	// Check is a quest flow asset
-	auto ConnectedInfoNodes = QuestFlowTemplate->GetNodesInExecutionOrder(QuestFlowTemplate->GetDefaultEntryNode(), UFlowNode_QuestInfo::StaticClass());
-	auto ConnectedFinishNodes = QuestFlowTemplate->GetNodesInExecutionOrder(QuestFlowTemplate->GetDefaultEntryNode(), UFlowNode_QuestFinish::StaticClass());
-	
-	if (ConnectedInfoNodes.Num() != 1)
-	{
-		UE_LOG(LogTemp, Error, TEXT("You are trying to start a invalid quest flow. Please check whether %s has ONLY ONE Quest Info node."), *QuestFlowTemplate->GetName());
-	}
-
-	if (ConnectedInfoNodes.Num() != 1)
-	{
-		UE_LOG(LogTemp, Error, TEXT("You are trying to start a invalid quest flow. Please check whether %s has ONLY ONE Quest Finish node."), *QuestFlowTemplate->GetName());
-	}
-	
-	return ConnectedInfoNodes.Num() == 1 && ConnectedFinishNodes.Num() == 1;
-}
-
-void UQuestGlobalComponent::MarkGoalDirty(UFlowNode_QuestCommon* QuestCommonNodePtr, bool bNeedRemoved)
-{
-	auto NodeTemplate = Cast<UFlowNode_QuestCommon>(QuestCommonNodePtr->GetFlowAsset()->GetTemplateAsset()->GetNode(QuestCommonNodePtr->GetGuid()));
+	auto NodeTemplate = Cast<UFlowNode_QuestCommon>(
+		QuestCommonNodePtr->GetFlowAsset()->GetTemplateAsset()->GetNode(QuestCommonNodePtr->GetGuid()));
 	auto Ptr = GoalInfoList.GoalInfos.IndexOfByPredicate([&](const FGoalInfo& GoalInfo)
 	{
 		return GoalInfo.QuestCommonNodeDefault == NodeTemplate;
@@ -52,29 +34,22 @@ void UQuestGlobalComponent::MarkGoalDirty(UFlowNode_QuestCommon* QuestCommonNode
 	
 	if (Ptr >= 0)
 	{
-		if (bNeedRemoved)
-		{
-			GoalInfoList.GoalInfos.RemoveAt(Ptr);
-			GoalInfoList.MarkArrayDirty();
-			return;
-		}
 		GoalInfoList.GoalInfos[Ptr].GoalDesc = QuestCommonNodePtr->GetGoalDesc();
-		GoalInfoList.GoalInfos[Ptr].bChecked = QuestCommonNodePtr->bGoalFinished;
+		GoalInfoList.GoalInfos[Ptr].GoalState = GoalState;
 		GoalInfoList.MarkItemDirty(GoalInfoList.GoalInfos[Ptr]);
-		OnRep_GoalInfoList();
 	}
 	else
 	{
-		auto NewGoalInfo = FGoalInfo(NodeTemplate, QuestCommonNodePtr->GetGoalDesc(), QuestCommonNodePtr->bGoalFinished);
+		auto NewGoalInfo = FGoalInfo(NodeTemplate, QuestCommonNodePtr->GetGoalDesc(), GoalState);
 		GoalInfoList.GoalInfos.Add(NewGoalInfo);
 		GoalInfoList.MarkItemDirty(NewGoalInfo);
-		OnRep_GoalInfoList();
 	}
+	OnRep_GoalInfoList();
 }
 
-void UQuestGlobalComponent::AcceptQuest(UFlowAsset* QuestFlow)
+void UQuestGlobalComponent::AcceptQuest(UFlowAsset_Quest* QuestFlow)
 {
-	if (!IsQuestFlowValid(QuestFlow))
+	if (!QuestFlow)
 	{
 		return;
 	}
@@ -139,7 +114,7 @@ void UQuestGlobalComponent::GetSelectedQuestFlowInfo(TArray<FGoalInfo>& QuestInf
 		return;
 	}
 
-	QuestName = UFlowExtraFunctionLibrary::GetCurrentQuestInfo(SelectedQuestFlow)->QuestName;
+	QuestName = Cast<UFlowAsset_Quest>(SelectedQuestFlow)->QuestName;
 	
 	for (auto Itr : GoalInfoList.GoalInfos)
 	{
@@ -149,6 +124,26 @@ void UQuestGlobalComponent::GetSelectedQuestFlowInfo(TArray<FGoalInfo>& QuestInf
 		}
 	}
 	QuestInfos = Result;
+}
+
+void UQuestGlobalComponent::GetSelectedFinishedQuestFlow(TArray<FFinishedGoalState>& QuestGoals)
+{
+	TArray<FFinishedGoalState> Result;
+	
+	if (!SelectedQuestFlow)
+	{
+		QuestGoals = Result;
+		return;
+	}
+
+	for (auto Itr : QuestFlowStateList.QuestStates)
+	{
+		if (Itr.QuestFlowTemplate == SelectedQuestFlow)
+		{
+			QuestGoals = Itr.Nodes;
+			return;
+		}
+	}
 }
 
 void UQuestGlobalComponent::NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> QuestGoalClass, UObject* Object1, UObject* Object2)
@@ -164,6 +159,77 @@ void UQuestGlobalComponent::NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> Q
 			}
 		}
 	}
+}
+
+FQuestSaveData UQuestGlobalComponent::GetQuestSaveData()
+{
+	FQuestSaveData Result;
+	for (auto Itr : QuestFlowStateList.QuestStates)
+	{
+		if (Itr.QuestFlowState == QFS_Finished || Itr.QuestFlowState == QFS_Failed)
+		{
+			Result.FinishedQuestFlowAssetSaveData.Add(Itr.QuestFlowTemplate, FFinishedQuestState(Itr.QuestFlowState, Itr.FinishNodeGuid, Itr.Nodes));
+		}
+	}
+	for (auto Itr : GetOngoingQuestInstances())
+	{
+		if (auto QuestItr = Cast<UFlowAsset_Quest>(Itr))
+		{
+			Result.OngoingQuestFlowAssetSaveData.Add(QuestItr->GetTemplateAsset(), QuestItr->SaveQuestInstance());
+		}
+	}
+	Result.bValid = Result.OngoingQuestFlowAssetSaveData.Num() > 0;
+	return Result;
+}
+
+bool UQuestGlobalComponent::LoadQuestSaveData(FQuestSaveData SaveData)
+{
+	if (!SaveData.bValid)
+	{
+		return false;
+	}
+	
+	for (auto Itr : SaveData.OngoingQuestFlowAssetSaveData)
+	{
+		for (auto Itr1 : GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>()->GetRootInstances().Array())
+		{
+			if (Itr1.Value->GetTemplateAsset() == Itr.Key)
+			{
+				Itr1.Value->FinishFlow(EFlowFinishPolicy::Abort);
+			}
+			break;
+		}
+		
+		if (auto NewInstance = GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>()->CreateRootFlow(this, Itr.Key, false))
+		{
+			if (auto NewQuestInstance = Cast<UFlowAsset_Quest>(NewInstance))
+			{
+				NewQuestInstance->LoadQuestInstance(Itr.Value);
+			}
+		}
+	}
+
+	QuestFlowStateList.QuestStates.Empty();
+	for (auto Pair : SaveData.OngoingQuestFlowAssetSaveData)
+	{
+		auto NewState = FQuestFlowState(Pair.Key,
+			QFS_Ongoing,
+			FGuid());
+		QuestFlowStateList.QuestStates.Add(NewState);
+		QuestFlowStateList.MarkItemDirty(NewState);
+	}
+	for (auto Pair : SaveData.FinishedQuestFlowAssetSaveData)
+	{
+		auto NewState = FQuestFlowState(Pair.Key,
+			Pair.Value.State,
+			Pair.Value.FinishNodeGuids,
+			Pair.Value.Nodes);
+		QuestFlowStateList.QuestStates.Add(NewState);
+		QuestFlowStateList.MarkItemDirty(NewState);
+	}
+	OnRep_QuestFlowStateList();
+	OnRep_GoalInfoList();
+	return true;
 }
 
 //void UQuestGlobalComponent::UpdateGoalsDesc(UFlowAsset* QuestFlowInstance, TArray<FGoalInfo>& ModifyGoals)

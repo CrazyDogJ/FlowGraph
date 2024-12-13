@@ -13,9 +13,11 @@ UCLASS()
 class FLOWEXTRA_API UFlowNode_QuestFinish : public UFlowNode
 {
 	GENERATED_BODY()
+
+	UFlowNode_QuestFinish();
 	
 	virtual void ExecuteInput(const FName& PinName) override;
-
+	virtual bool CanFinishGraph() const override {return true;}
 public:
 	UPROPERTY(BlueprintReadOnly, EditAnywhere)
 	bool bSuccessOrFailed = true;

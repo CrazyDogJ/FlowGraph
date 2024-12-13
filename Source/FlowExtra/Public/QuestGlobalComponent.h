@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "FlowNode_QuestCommon.h"
 #include "FlowNode_QuestInfo.h"
-#include "FlowAsset.h"
+#include "FlowAsset_Quest.h"
 #include "Components/ActorComponent.h"
 #include "Net/Serialization/FastArraySerializer.h"
 #include "QuestGlobalComponent.generated.h"
@@ -13,10 +13,52 @@
 UENUM(BlueprintType)
 enum EQuestFlowState : uint8
 {
-	QFS_Ongoing = 0,
-	QFS_Finished = 1,
-	QFS_Failed = 2,
-	QFS_Invalid = 3
+	QFS_Ongoing = 0		UMETA(DisplayName = "Quest Flow Ongoing"),
+	QFS_Finished = 1	UMETA(DisplayName = "Quest Flow Finished"),
+	QFS_Failed = 2		UMETA(DisplayName = "Quest Flow Failed"),
+	QFS_Invalid = 3		UMETA(DisplayName = "Quest Flow Invalid"),
+};
+
+USTRUCT(BlueprintType)
+struct FFinishedGoalState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	FText GoalDesc;
+
+	UPROPERTY(BlueprintReadOnly)
+	TEnumAsByte<EGoalState> GoalState;
+};
+
+USTRUCT(BlueprintType)
+struct FFinishedQuestState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, SaveGame)
+	TEnumAsByte<EQuestFlowState> State;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, SaveGame)
+	FGuid FinishNodeGuids;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, SaveGame)
+	TArray<FFinishedGoalState> Nodes;
+};
+
+USTRUCT(BlueprintType)
+struct FQuestSaveData
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, SaveGame)
+	TMap<UFlowAsset*, FFinishedQuestState> FinishedQuestFlowAssetSaveData;
+	
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, SaveGame)
+	TMap<UFlowAsset*, FFlowAssetSaveData> OngoingQuestFlowAssetSaveData;
+	
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, SaveGame)
+	bool bValid = false;
 };
 
 #pragma region QuestStates
@@ -31,12 +73,22 @@ struct FQuestFlowState : public FFastArraySerializerItem
 	FQuestFlowState(): QuestFlowTemplate(nullptr), QuestFlowState(QFS_Invalid) {}
 	FQuestFlowState(UFlowAsset* FlowAsset, EQuestFlowState Qfs_Ongoing)
 		: QuestFlowTemplate(FlowAsset), QuestFlowState(Qfs_Ongoing) {}
+	FQuestFlowState(UFlowAsset* FlowAsset, EQuestFlowState Qfs_Ongoing, FGuid FinishNodeGuid)
+		: QuestFlowTemplate(FlowAsset), QuestFlowState(Qfs_Ongoing), FinishNodeGuid(FinishNodeGuid){}
+	FQuestFlowState(UFlowAsset* FlowAsset, EQuestFlowState Qfs_Ongoing, FGuid FinishNodeGuid, TArray<FFinishedGoalState> Nodes)
+		: QuestFlowTemplate(FlowAsset), QuestFlowState(Qfs_Ongoing), FinishNodeGuid(FinishNodeGuid), Nodes(Nodes){}
 	
 	UPROPERTY(BlueprintReadOnly)
 	UFlowAsset* QuestFlowTemplate;
 
 	UPROPERTY(BlueprintReadOnly)
 	TEnumAsByte<EQuestFlowState> QuestFlowState;
+
+	UPROPERTY(BlueprintReadOnly)
+	FGuid FinishNodeGuid;
+
+	UPROPERTY(BlueprintReadOnly)
+	TArray<FFinishedGoalState> Nodes;
 };
 
 USTRUCT(BlueprintType)
@@ -66,9 +118,9 @@ struct FGoalInfo : public FFastArraySerializerItem
 {
 	GENERATED_BODY()
 
-	FGoalInfo() : QuestCommonNodeDefault(nullptr), bChecked(false) {}
-	FGoalInfo(UFlowNode_QuestCommon* QuestCommonNodeDefault, FText InGoalDesc, bool bChecked)
-		: QuestCommonNodeDefault(QuestCommonNodeDefault), GoalDesc(InGoalDesc), bChecked(bChecked) {}
+	FGoalInfo() : QuestCommonNodeDefault(nullptr), GoalState(EGS_Ongoing) {}
+	FGoalInfo(UFlowNode_QuestCommon* QuestCommonNodeDefault, const FText& InGoalDesc, EGoalState GoalState)
+		: QuestCommonNodeDefault(QuestCommonNodeDefault), GoalDesc(InGoalDesc), GoalState(GoalState) {}
 	
 	UPROPERTY(BlueprintReadOnly)
 	UFlowNode_QuestCommon* QuestCommonNodeDefault;
@@ -77,7 +129,7 @@ struct FGoalInfo : public FFastArraySerializerItem
 	FText GoalDesc;
 
 	UPROPERTY(BlueprintReadOnly)
-	bool bChecked;
+	TEnumAsByte<EGoalState> GoalState;
 };
 
 USTRUCT(BlueprintType)
@@ -112,17 +164,14 @@ public:
 	UQuestGlobalComponent();
 
 #pragma region Functions
-	
-	bool IsQuestFlowValid(UFlowAsset* QuestFlowTemplate);
-
-	void MarkGoalDirty(UFlowNode_QuestCommon* QuestCommonNodePtr, bool bNeedRemoved);
+	void MarkGoalDirty(UFlowNode_QuestCommon* QuestCommonNodePtr, TEnumAsByte<EGoalState> GoalState);
 	
 	/**
 	 * Start a quest on server.
 	 * @param QuestFlow Quest flow template
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Quest")
-	void AcceptQuest(UFlowAsset* QuestFlow);
+	void AcceptQuest(UFlowAsset_Quest* QuestFlow);
 
 	/**
 	 * Get current ongoing quest flow instances.
@@ -154,12 +203,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Quest")
 	void GetSelectedQuestFlowInfo(TArray<FGoalInfo>& QuestInfos, FText& QuestName);
 
+	UFUNCTION(BlueprintCallable, Category="Quest")
+	void GetSelectedFinishedQuestFlow(TArray<FFinishedGoalState>& QuestGoals);
+	
 	/**
 	* Used to notify goal nodes in current ongoing quest flow instances. 
 	*/
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Quest")
 	void NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> QuestGoalClass, UObject* Object1, UObject* Object2);
 
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Quest")
+	FQuestSaveData GetQuestSaveData();
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Quest")
+	bool LoadQuestSaveData(FQuestSaveData SaveData);
+	
 	UFUNCTION()
 	void OnRep_QuestFlowStateList();
 
