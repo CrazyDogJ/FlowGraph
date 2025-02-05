@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Nodes/World/FlowNode_OnNotifyFromActor.h"
+#include "Nodes/FlowNode.h"
 #include "FlowNode_QuestCommon.generated.h"
 
 UENUM(BlueprintType)
