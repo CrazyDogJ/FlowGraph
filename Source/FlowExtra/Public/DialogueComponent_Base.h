@@ -43,6 +43,9 @@ public:
 	FDialogueNodeNotify OnDialogueNodeStart;
 
 	UPROPERTY(BlueprintAssignable)
+	FDialogueNodeNotify OnDialogueNodeTextChanged;
+	
+	UPROPERTY(BlueprintAssignable)
 	FDialogueNodeNotify OnDialogueNodeEnd;
 
 	UPROPERTY(BlueprintAssignable)

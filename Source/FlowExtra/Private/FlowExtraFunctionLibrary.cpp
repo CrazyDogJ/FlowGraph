@@ -122,3 +122,87 @@ void UFlowExtraFunctionLibrary::CompareArray(TArray<UFlowNode_QuestCommon*> Arra
 		Add.Add(SortedB[IndexB]);
 	}
 }
+
+//Rich TEXT
+void UFlowExtraFunctionLibrary::InitRichTextContext(const FString& RichText, FRichTextContext& RichTextContext)
+{
+	// 我早说过，这个<yellow>古董</>是<red>赝品</>啦！
+	RichTextContext.SourceString = RichText;
+	RichTextContext.PureString.Empty();
+	RichTextContext.FlagData.Empty();
+ 
+	bool SeekFlagStart = false;
+	bool SeekFlagEnd = false;
+	FRichTextFlag TempFlag;
+	FString TempString;
+	for (int i = 0; i < RichText.Len();)
+	{
+		auto CurrentChar = RichText[i];
+		if (SeekFlagStart)
+		{
+			TempString.AppendChar(CurrentChar);
+			if (CurrentChar == '>')
+			{//seek start over
+				SeekFlagStart = false;
+				SeekFlagEnd = true;
+				TempFlag.FlagString = TempString;
+				TempFlag.StartIndex = RichTextContext.PureString.Len();
+			}
+		}
+		else if (SeekFlagEnd)
+		{
+			if (CurrentChar == '<')
+			{//找到尾部标识
+				SeekFlagEnd = false;
+				TempFlag.EndIndex = RichTextContext.PureString.Len();
+				RichTextContext.FlagData.Add(TempFlag);
+				i += 2;
+			}
+			else
+			{
+				RichTextContext.PureString.AppendChar(CurrentChar);
+			}
+		}
+		else
+		{
+			if (CurrentChar == '<')
+			{
+				SeekFlagStart = true;
+				TempString.Empty();
+				TempString.AppendChar(CurrentChar);
+			}
+			else
+				RichTextContext.PureString.AppendChar(CurrentChar);
+		}
+		++i;
+	}
+}
+ 
+FString UFlowExtraFunctionLibrary::GetRichTextSubString(const FRichTextContext& RichTextContext, int PureCharLength)
+{
+	FString SubString = RichTextContext.PureString.Left(PureCharLength);
+ 
+	int InsertIndex = -1;
+	for (int i = 0; i < RichTextContext.FlagData.Num(); ++i)
+	{
+		if (RichTextContext.FlagData[i].StartIndex < PureCharLength)
+			InsertIndex++;
+		else
+			break;
+	}
+ 
+	for (int i = RichTextContext.FlagData.Num() - 1; i >= 0; --i)
+	{
+		const auto& Data = RichTextContext.FlagData[i];
+		if (i <= InsertIndex)
+		{
+			if (PureCharLength >= Data.EndIndex)
+				SubString.InsertAt(Data.EndIndex, TEXT("</>"));
+			else
+				SubString.Append(TEXT("</>"));
+			SubString.InsertAt(Data.StartIndex, Data.FlagString);
+		}
+	}
+ 
+	return SubString;
+}

@@ -9,6 +9,38 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "FlowExtraFunctionLibrary.generated.h"
 
+// Struct for rich text start
+USTRUCT(BlueprintType)
+struct FRichTextFlag
+{
+	GENERATED_USTRUCT_BODY()
+ 
+	UPROPERTY(BlueprintReadOnly)
+	int  StartIndex = -1;
+ 
+	UPROPERTY(BlueprintReadOnly)
+	int  EndIndex = -1;
+ 
+	UPROPERTY(BlueprintReadOnly)
+	FString FlagString;
+};
+ 
+USTRUCT(BlueprintType)
+struct FRichTextContext
+{
+	GENERATED_USTRUCT_BODY()
+ 
+	UPROPERTY(BlueprintReadOnly)
+	FString SourceString;
+ 
+	UPROPERTY(BlueprintReadOnly)
+	FString PureString;
+ 
+	UPROPERTY(BlueprintReadOnly)
+	TArray<FRichTextFlag> FlagData;
+};
+// Struct for rich text end
+
 /**
  * 
  */
@@ -40,4 +72,10 @@ public:
 	static void CompareArray(TArray<UFlowNode_QuestCommon*> ArrayA, TArray<UFlowNode_QuestCommon*> ArrayB,
 	                         TArray<UFlowNode_QuestCommon*>& Add, TArray<UFlowNode_QuestCommon*>& Remove,
 	                         TArray<UFlowNode_QuestCommon*>& Unchanged);
+
+	UFUNCTION(BlueprintCallable, Category = "Flow|Dialogue")
+	static void InitRichTextContext(const FString& RichText, FRichTextContext& RichTextContext);
+
+	UFUNCTION(BlueprintCallable, Category = "Flow|Dialogue")
+	static FString GetRichTextSubString(const FRichTextContext& RichTextContext, int PureCharLength);
 };

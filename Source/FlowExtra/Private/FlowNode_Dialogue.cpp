@@ -14,15 +14,30 @@ UFlowNode_Dialogue::UFlowNode_Dialogue(const FObjectInitializer& ObjectInitializ
 
 void UFlowNode_Dialogue::ContinueDialogue_Implementation(int SelectionIndex)
 {
-	if (HasOptions() && SelectionIndex >= 0)
+	// If current text index is max
+	if (IsLastText())
 	{
-		TArray<FName> OptionsKeys;
-		Options.GenerateKeyArray(OptionsKeys);
-		TriggerOutput(OptionsKeys[SelectionIndex], true);
+		if (HasOptions() && SelectionIndex >= 0)
+		{
+			TArray<FName> OptionsKeys;
+			Options.GenerateKeyArray(OptionsKeys);
+			TriggerOutput(OptionsKeys[SelectionIndex], true);
+		}
+		else
+		{
+			TriggerFirstOutput(true);
+		}
 	}
 	else
 	{
-		TriggerFirstOutput(true);
+		CurrentTextIndex ++;
+		for (auto Actor : Cast<UFlowAsset_Dialogue>(GetFlowAsset())->GetIdentityActors())
+		{
+			if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
+			{
+				Comp->OnDialogueNodeTextChanged.Broadcast(this);
+			}
+		}
 	}
 }
 
@@ -38,8 +53,22 @@ bool UFlowNode_Dialogue::HasOptions() const
 	return Options.Num() > 0;
 }
 
+bool UFlowNode_Dialogue::IsLastText() const
+{
+	return CurrentTextIndex == Text.Num() - 1;
+}
+
 void UFlowNode_Dialogue::ExecuteInput(const FName& PinName)
 {
+	if (Text.Num() <= 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("This node has no text, flow asset is %s"), *GetFlowAsset()->GetName())
+		Finish();
+		return;
+	}
+	
+	CurrentTextIndex = 0;
+	
 	if (auto Flow_Dialogue = Cast<UFlowAsset_Dialogue>(GetFlowAsset()))
 	{
 		Flow_Dialogue->CurrentDialogueNode = this;
@@ -56,6 +85,7 @@ void UFlowNode_Dialogue::ExecuteInput(const FName& PinName)
 		if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
 		{
 			Comp->OnDialogueNodeStart.Broadcast(this);
+			Comp->OnDialogueNodeTextChanged.Broadcast(this);
 		}
 	}
 
@@ -86,6 +116,8 @@ void UFlowNode_Dialogue::Finish()
 	{
 		ExtraBehaviour->OnDialogueNodeEnd(this);
 	}
+
+	CurrentTextIndex = -1;
 	
 	Super::Finish();
 }
@@ -93,31 +125,36 @@ void UFlowNode_Dialogue::Finish()
 #if WITH_EDITOR
 void UFlowNode_Dialogue::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
 	if (PropertyChangedEvent.Property
-		&& (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UFlowNode_Dialogue, Options) || PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UFlowNode_Dialogue, Options)))
+		&& PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UFlowNode_Dialogue, Options))
 	{
 		if (Options.Num() > 0)
 		{
 			OutputPins.Empty();
-			for (auto Option = Options.CreateConstIterator(); Option; ++Option)
+			for (auto Option : Options)
 			{
 				FFlowPin Pin;
-				Pin.PinName = Option.Key();
-				OutputPins.Add(Pin);
+				Pin.PinName = Option.Key;
+				OutputPins.AddUnique(Pin);
 			}
 		}
 		else
 		{
 			OutputPins = { DefaultOutputPin };
 		}
-		GetGraphNode()->ReconstructNode();
+		OnReconstructionRequested.ExecuteIfBound();
 	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
 FString UFlowNode_Dialogue::GetNodeDescription() const
 {
-	return Text.ToString() + LINE_TERMINATOR + K2_GetNodeDescription();
+	FString ArrayText;
+	for (auto Single : Text)
+	{
+		ArrayText = ArrayText + Single.ToString() + LINE_TERMINATOR;
+	}
+	return ArrayText + K2_GetNodeDescription();
 }
 #endif

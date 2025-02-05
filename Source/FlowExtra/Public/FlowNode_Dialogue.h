@@ -38,8 +38,11 @@ class FLOWEXTRA_API UFlowNode_Dialogue : public UFlowNode
 public:
 #pragma region Properties
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow|Text", meta = (Multiline = "true"))
-	FText Text;
+	TArray<FText> Text;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Flow|Text")
+	int CurrentTextIndex = -1;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow|Text")
 	TMap<FName, FText> Options;
 
@@ -61,6 +64,9 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category = "Flow")
 	bool HasOptions() const;
+
+	UFUNCTION(BlueprintPure, Category = "Flow")
+	bool IsLastText() const;
 #pragma endregion
 	
 #pragma region Override
