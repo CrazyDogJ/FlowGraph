@@ -1,37 +1,34 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
-#include "FlowNode_Dialogue_Start.h"
+#include "FlowAsset_Dialogue.h"
 
 #include "DialogueComponent_Base.h"
 #include "FlowComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 
-UFlowNode_Dialogue_Start::UFlowNode_Dialogue_Start()
+void UFlowAsset_Dialogue::FinishFlow(const EFlowFinishPolicy InFinishPolicy, const bool bRemoveInstance)
 {
-#if WITH_EDITOR
-	Category = TEXT("Dialogue");
-#endif
-}
-
-FString UFlowNode_Dialogue_Start::GetNodeDescription() const
-{
-	FString ResultString = "Identity Tags : ";
-	for (auto Tag : IdentityTags)
+	CurrentDialogueNode = nullptr;
+	
+	for (auto Actor : GetIdentityActors())
 	{
-		ResultString += LINE_TERMINATOR + Tag.GetTagName().ToString();
+		if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
+		{
+			Comp->OnDialogueFlowEnd.Broadcast(this);
+		}
 	}
-	return ResultString;
+	
+	Super::FinishFlow(InFinishPolicy, bRemoveInstance);
 }
 
-TArray<AActor*> UFlowNode_Dialogue_Start::GetIdentityActors()
+TArray<AActor*> UFlowAsset_Dialogue::GetIdentityActors()
 {
 	TArray<TObjectPtr<AActor>> Result;
 	IdentityActors.GenerateValueArray(Result);
 	return Result;
 }
 
-void UFlowNode_Dialogue_Start::UpdateNearNPC()
+void UFlowAsset_Dialogue::UpdateNearNPC()
 {
 	// Setup Ignore Actors
 	TArray<AActor*> IgnoreActors;
@@ -63,7 +60,7 @@ void UFlowNode_Dialogue_Start::UpdateNearNPC()
 	QueryObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
 	TArray<AActor*> RadiusSweepResult;
 	UKismetSystemLibrary::SphereOverlapActors(GetWorld(), CenterActor->GetActorLocation(), Radius, QueryObjectTypes,
-	                                          AActor::StaticClass(), IgnoreActors, RadiusSweepResult);
+											  AActor::StaticClass(), IgnoreActors, RadiusSweepResult);
 
 	// Valid visible trace
 	FCollisionQueryParams LineTraceQueryParams;
@@ -71,7 +68,7 @@ void UFlowNode_Dialogue_Start::UpdateNearNPC()
 	for (auto Actor : RadiusSweepResult)
 	{
 		bool Trace = GetWorld()->LineTraceTestByChannel(CenterActor->GetActorLocation(), Actor->GetActorLocation(),
-		                                                ECC_Visibility, LineTraceQueryParams);
+														ECC_Visibility, LineTraceQueryParams);
 		if (!Trace)
 		{
 			// Update list
@@ -88,7 +85,7 @@ void UFlowNode_Dialogue_Start::UpdateNearNPC()
 	}
 }
 
-void UFlowNode_Dialogue_Start::SetupVariables(AActor* Player, AActor* DialogueObject)
+void UFlowAsset_Dialogue::SetupVariables(AActor* Player, AActor* DialogueObject)
 {
 	UGameplayTagsManager& TagsManager = UGameplayTagsManager::Get();
 	auto PlayerTag = TagsManager.RequestGameplayTag(TEXT("Flow.DialogInvolver.Player"));
@@ -103,9 +100,9 @@ void UFlowNode_Dialogue_Start::SetupVariables(AActor* Player, AActor* DialogueOb
 	{
 		if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
 		{
-			Comp->OnDialogueFlowStart.Broadcast(GetFlowAsset());
+			Comp->OnDialogueFlowStart.Broadcast(this);
 		}
 	}
-	
-	TriggerOutput(DefaultOutputPin.PinName, false);
+
+	StartFlow();
 }

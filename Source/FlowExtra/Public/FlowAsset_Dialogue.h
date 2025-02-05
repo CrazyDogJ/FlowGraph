@@ -3,21 +3,20 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameplayTagsManager.h"
-#include "Nodes/FlowNode.h"
-#include "FlowNode_Dialogue_Start.generated.h"
+#include "FlowAsset.h"
+#include "FlowAsset_Dialogue.generated.h"
 
 /**
  * 
  */
-UCLASS(Blueprintable, DisplayName = "Dialogue Start")
-class FLOWEXTRA_API UFlowNode_Dialogue_Start : public UFlowNode
+UCLASS(BlueprintType, hideCategories = Object)
+class FLOWEXTRA_API UFlowAsset_Dialogue : public UFlowAsset
 {
 	GENERATED_BODY()
 
+	virtual void FinishFlow(const EFlowFinishPolicy InFinishPolicy, const bool bRemoveInstance) override;
+	
 public:
-	UFlowNode_Dialogue_Start();
-
 	/**
 	 * Tags to identify near dialogue objects;
 	 */
@@ -27,18 +26,21 @@ public:
 	/**
 	 * Radius to check near dialogue objects;
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Dialogue")
 	float Radius = 500.0f;
 
 	/**
 	 * Center actor;
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Dialogue")
 	FGameplayTag CenterActorTag = FGameplayTag::RequestGameplayTag(TEXT("Flow.DialogInvolver.Player"));
 	
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Category = "Dialogue")
 	TMap<FGameplayTag, TObjectPtr<AActor>> IdentityActors;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Flow|Extra")
+	UFlowNode_Dialogue* CurrentDialogueNode;
+	
 	UFUNCTION(BlueprintCallable)
 	TArray<AActor*> GetIdentityActors();
 
@@ -47,7 +49,4 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void SetupVariables(AActor* Player, AActor* DialogueObject);
-
-	// Override
-	virtual FString GetNodeDescription() const override;
 };

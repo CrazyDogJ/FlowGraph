@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 
-class FFlowExtraModule : public IModuleInterface
+class FLOWEXTRA_API FFlowExtraModule : public IModuleInterface
 {
 public:
     virtual void StartupModule() override;

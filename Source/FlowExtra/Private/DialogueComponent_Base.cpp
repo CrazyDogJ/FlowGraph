@@ -7,6 +7,7 @@
 #include "DialogueCameraInterface.h"
 #include "DialogueWidget.h"
 #include "FlowAsset.h"
+#include "FlowAsset_Dialogue.h"
 #include "FlowExtraFunctionLibrary.h"
 #include "FlowSubsystem.h"
 #include "Blueprint/UserWidget.h"
@@ -95,7 +96,7 @@ void UDialogueComponent_Base::OnDialogueNodeEndEvent(UFlowNode_Dialogue* Dialogu
 	}
 }
 
-void UDialogueComponent_Base::OnDialogueFlowStartEvent(UFlowAsset* DialogueFlow)
+void UDialogueComponent_Base::OnDialogueFlowStartEvent(UFlowAsset_Dialogue* DialogueFlow)
 {
 	if (auto Character = Cast<ACharacter>(GetOwner()))
 	{
@@ -115,7 +116,7 @@ void UDialogueComponent_Base::OnDialogueFlowStartEvent(UFlowAsset* DialogueFlow)
 	bInDialogue = true;
 }
 
-void UDialogueComponent_Base::OnDialogueFlowEndEvent(UFlowAsset* DialogueFlow)
+void UDialogueComponent_Base::OnDialogueFlowEndEvent(UFlowAsset_Dialogue* DialogueFlow)
 {
 	if (CurrentDialogueMontage)
 	{
@@ -210,7 +211,7 @@ void UDialogueComponent_Base::SetupVariables(UPrimitiveComponent* InPrimitiveCom
 	ComponentSocket = InComponentSocket;
 }
 
-void UDialogueComponent_Base::StartDialogue(UFlowAsset* FlowAsset, AActor* InteractedCharacter)
+void UDialogueComponent_Base::StartDialogue(UFlowAsset_Dialogue* FlowAsset, AActor* InteractedCharacter)
 {
 	// invalid ptr
 	if (!FlowAsset || !InteractedCharacter)
@@ -219,33 +220,17 @@ void UDialogueComponent_Base::StartDialogue(UFlowAsset* FlowAsset, AActor* Inter
 	}
 
 	// Check is a dialogue flow asset
-	bool bIsDialogueFlow = false;
-	for (auto NodeItr : FlowAsset->GetNodes())
-	{
-		if (Cast<UFlowNode_Dialogue_Start>(NodeItr.Value))
-		{
-			bIsDialogueFlow = true;
-			break;
-		}
-	}
-	if (!bIsDialogueFlow)
-	{
-		UE_LOG(LogTemp, Error, TEXT("You are trying to start a invalid dialogue flow. Please check whether %s has a Dialogue_Start node."), *FlowAsset->GetName());
-		return;
-	}
+	//const bool bIsDialogueFlow = Cast<UFlowAsset_Dialogue>(FlowAsset);
+	//if (!bIsDialogueFlow)
+	//{
+	//	UE_LOG(LogTemp, Error, TEXT("You are trying to start a invalid dialogue flow. Please check whether %s has a Dialogue_Start node."), *FlowAsset->GetName());
+	//	return;
+	//}
 
 	//Start
-	if (auto FlowInstance = GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>()->StartRootFlow(this, FlowAsset))
+	if (auto FlowInstance = GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>()->CreateRootFlow(this, FlowAsset))
 	{
-		if (auto Node = UFlowExtraFunctionLibrary::GetCurrentDialogueInfos(FlowInstance))
-		{
-			CurrentRole = EDR_DialogueOwner;
-			if (auto PlayerComp = Cast<UDialogueComponent_Base>(InteractedCharacter->GetComponentByClass(StaticClass())))
-			{
-				PlayerComp->CurrentRole = EDR_Player;
-			}
-			Node->SetupVariables(InteractedCharacter, GetOwner());
-		}
+		Cast<UFlowAsset_Dialogue>(FlowInstance)->SetupVariables(InteractedCharacter, GetOwner());
 	}
 }
 

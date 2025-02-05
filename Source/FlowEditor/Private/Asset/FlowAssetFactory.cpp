@@ -10,6 +10,7 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Kismet2/SClassPickerDialog.h"
 #include "Modules/ModuleManager.h"
+#include "Widgets/Layout/SUniformGridPanel.h"
 
 #define LOCTEXT_NAMESPACE "FlowAssetFactory"
 
@@ -57,6 +58,195 @@ public:
 	}
 };
 
+
+// ------------------------------------------------------------------------------
+// Dialog to configure creation properties
+// ------------------------------------------------------------------------------
+BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
+
+class SFlowAssetCreateDialog final : public SCompoundWidget
+{
+public:
+	SLATE_BEGIN_ARGS(SFlowAssetCreateDialog) {}
+		SLATE_ARGUMENT(TSubclassOf<UFlowAsset>, ParentClass)
+	SLATE_END_ARGS()
+
+	/** Constructs this widget with InArgs */
+	void Construct(const FArguments& InArgs)
+	{
+		bOkClicked = false;
+		ParentClass = UFlowAsset::StaticClass();
+
+		ChildSlot
+		[
+			SNew(SBorder)
+				.Visibility(EVisibility::Visible)
+				.BorderImage(FAppStyle::GetBrush("Menu.Background"))
+				[
+					SNew(SBox)
+						.Visibility(EVisibility::Visible)
+						.WidthOverride(500.0f)
+						[
+							SNew(SVerticalBox)
+							+ SVerticalBox::Slot()
+								.FillHeight(1)
+								[
+									SNew(SBorder)
+										.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+										.Content()
+										[
+											SAssignNew(ParentClassContainer, SVerticalBox)
+										]
+								]
+							+ SVerticalBox::Slot()
+								.AutoHeight()
+								.HAlign(HAlign_Right)
+								.VAlign(VAlign_Bottom)
+								.Padding(8)
+								[
+									SNew(SUniformGridPanel)
+										.SlotPadding(FAppStyle::GetMargin("StandardDialog.SlotPadding"))
+										.MinDesiredSlotWidth(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotWidth"))
+										.MinDesiredSlotHeight(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotHeight"))
+										+ SUniformGridPanel::Slot(0, 0)
+											[
+												SNew(SButton)
+													.HAlign(HAlign_Center)
+													.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
+													.OnClicked(this, &SFlowAssetCreateDialog::OkClicked)
+													.Text(LOCTEXT("CreateFlowAssetOk", "OK"))
+											]
+										+ SUniformGridPanel::Slot(1, 0)
+											[
+												SNew(SButton)
+													.HAlign(HAlign_Center)
+													.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
+													.OnClicked(this, &SFlowAssetCreateDialog::CancelClicked)
+													.Text(LOCTEXT("CreateFlowAssetCancel", "Cancel"))
+											]
+								]
+						]
+				]
+		];
+
+			MakeParentClassPicker();
+		}
+
+	/** Sets properties for the supplied FlowAssetFactory */
+	bool ConfigureProperties(const TWeakObjectPtr<UFlowAssetFactory> InFlowAssetFactory)
+	{
+		FlowAssetFactory = InFlowAssetFactory;
+
+		const TSharedRef<SWindow> Window = SNew(SWindow)
+			.Title(LOCTEXT("CreateFlowAssetOptions", "Pick Parent Class"))
+			.ClientSize(FVector2D(400, 700))
+			.SupportsMinimize(false).SupportsMaximize(false)
+			[
+				AsShared()
+			];
+
+		PickerWindow = Window;
+		GEditor->EditorAddModalWindow(Window);
+		
+		FlowAssetFactory.Reset();
+		return bOkClicked;
+	}
+
+private:
+	/** Creates the combo menu for the parent class */
+	void MakeParentClassPicker()
+	{
+		// Load the Class Viewer module to display a class picker
+		FClassViewerModule& ClassViewerModule = FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer");
+
+		FClassViewerInitializationOptions Options;
+		Options.Mode = EClassViewerMode::ClassPicker;
+		Options.DisplayMode = EClassViewerDisplayMode::TreeView;
+		Options.bIsBlueprintBaseOnly = false;
+
+		const TSharedPtr<FAssetClassParentFilter> Filter = MakeShareable(new FAssetClassParentFilter);
+
+		// All child classes of ParentClass are valid
+		if (UClass* ParentClassObject = ParentClass.Get())
+		{
+			Filter->AllowedChildrenOfClasses.Add(ParentClassObject);
+		}
+		Options.ClassFilters = {Filter.ToSharedRef()};
+
+		ParentClassContainer->ClearChildren();
+		ParentClassContainer->AddSlot()
+			[
+				ClassViewerModule.CreateClassViewer(Options, FOnClassPicked::CreateSP(this, &SFlowAssetCreateDialog::OnClassPicked))
+			];
+	}
+
+	/** Handler for when a parent class is selected */
+	void OnClassPicked(UClass* ChosenClass)
+	{
+		if (ChosenClass)
+		{
+			ParentClass = ChosenClass;
+		}
+	}
+
+	/** Handler for when ok is clicked */
+	FReply OkClicked()
+	{
+		if (FlowAssetFactory.IsValid())
+		{
+			FlowAssetFactory->AssetClass = ParentClass.Get();
+		}
+
+		CloseDialog(true);
+
+		return FReply::Handled();
+	}
+
+	void CloseDialog(bool bWasPicked = false)
+	{
+		bOkClicked = bWasPicked;
+		if (PickerWindow.IsValid())
+		{
+			PickerWindow.Pin()->RequestDestroyWindow();
+		}
+	}
+
+	/** Handler for when cancel is clicked */
+	FReply CancelClicked()
+	{
+		CloseDialog();
+		return FReply::Handled();
+	}
+
+	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override
+	{
+		if (InKeyEvent.GetKey() == EKeys::Escape)
+		{
+			CloseDialog();
+			return FReply::Handled();
+		}
+		return SWidget::OnKeyDown(MyGeometry, InKeyEvent);
+	}
+
+private:
+	/** The factory for which we are setting up properties */
+	TWeakObjectPtr<UFlowAssetFactory> FlowAssetFactory;
+
+	/** A pointer to the window that is asking the user to select a parent class */
+	TWeakPtr<SWindow> PickerWindow;
+
+	/** The container for the Parent Class picker */
+	TSharedPtr<SVerticalBox> ParentClassContainer;
+
+	/** The selected class */
+	TWeakObjectPtr<UClass> ParentClass;
+
+	/** True if Ok was clicked */
+	bool bOkClicked = false;
+};
+
+END_SLATE_FUNCTION_BUILD_OPTIMIZATION
+
 UFlowAssetFactory::UFlowAssetFactory(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -69,9 +259,11 @@ UFlowAssetFactory::UFlowAssetFactory(const FObjectInitializer& ObjectInitializer
 
 bool UFlowAssetFactory::ConfigureProperties()
 {
-	const FText TitleText = LOCTEXT("CreateFlowAssetOptions", "Pick Flow Asset Class");
+	const TSharedRef<SFlowAssetCreateDialog> Dialog =
+		SNew(SFlowAssetCreateDialog)
+		.ParentClass(AssetClass);
 
-	return ConfigurePropertiesInternal(TitleText);
+	return Dialog->ConfigureProperties(this);
 }
 
 bool UFlowAssetFactory::ConfigurePropertiesInternal(const FText& TitleText)

@@ -4,6 +4,7 @@
 #include "FlowExtraFunctionLibrary.h"
 
 #include "FlowAsset.h"
+#include "FlowAsset_Dialogue.h"
 #include "FlowNode_Dialogue.h"
 #include "FlowSave.h"
 #include "FlowSubsystem.h"
@@ -46,11 +47,11 @@ UFlowNode_Dialogue* UFlowExtraFunctionLibrary::GetCurrentDialogueNode(UObject* D
 	{
 		return nullptr;
 	}
-	auto ActiveNodes = Instances[0]->GetActiveNodes();
-	if (ActiveNodes.IsValidIndex(1))
+	if (auto CurrentDialogueFlow = Cast<UFlowAsset_Dialogue>(Instances[0]))
 	{
-		return Cast<UFlowNode_Dialogue>(ActiveNodes[1]);
+		return CurrentDialogueFlow->CurrentDialogueNode;
 	}
+
 	return nullptr;
 }
 
@@ -63,22 +64,6 @@ void UFlowExtraFunctionLibrary::NotifyDialogueNode(int Index, UObject* FlowOwner
 			Node->ContinueDialogue(Index);
 		}
 	}
-}
-
-UFlowNode_Dialogue_Start* UFlowExtraFunctionLibrary::GetCurrentDialogueInfos(UFlowAsset* FlowInstance)
-{
-	if (FlowInstance)
-	{
-		if (FlowInstance->GetActiveNodes().IsValidIndex(0))
-		{
-			if (auto Info = Cast<UFlowNode_Dialogue_Start>(FlowInstance->GetActiveNodes()[0]))
-			{
-				return Info;
-			}
-		}
-	}
-
-	return nullptr;
 }
 
 UFlowNode_QuestInfo* UFlowExtraFunctionLibrary::GetCurrentQuestInfo(UFlowAsset* FlowInstance)

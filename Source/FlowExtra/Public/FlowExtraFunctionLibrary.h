@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "FlowNode_Dialogue.h"
-#include "FlowNode_Dialogue_Start.h"
 #include "FlowNode_QuestCommon.h"
 #include "FlowNode_QuestInfo.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
@@ -33,9 +32,6 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = Flow)
 	static void NotifyDialogueNode(int Index, UObject* FlowOwner);
-
-	UFUNCTION(BlueprintCallable, Category = Flow)
-	static UFlowNode_Dialogue_Start* GetCurrentDialogueInfos(UFlowAsset* FlowInstance);
 
 	UFUNCTION(BlueprintCallable, Category = Flow)
 	static UFlowNode_QuestInfo* GetCurrentQuestInfo(UFlowAsset* FlowInstance);

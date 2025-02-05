@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "CustomSpringCamera.h"
+#include "FlowAsset_Dialogue.h"
 #include "FlowComponent.h"
 #include "FlowNode_Dialogue.h"
 #include "DialogueComponent_Base.generated.h"
@@ -11,7 +12,7 @@
 class UDialogueWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDialogueNodeNotify, UFlowNode_Dialogue*, DialogueNode);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDialogueFlowNotify, UFlowAsset*, DialogueFlow);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDialogueFlowNotify, UFlowAsset_Dialogue*, DialogueFlow);
 
 UENUM(BlueprintType)
 enum EDialogMontageMode : uint8
@@ -29,7 +30,7 @@ enum EDialogRole : uint8
 	EDR_Extra = 2
 };
 
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent), Blueprintable)
 class FLOWEXTRA_API UDialogueComponent_Base : public UActorComponent
 {
 	GENERATED_BODY()
@@ -57,10 +58,10 @@ public:
 	void OnDialogueNodeEndEvent(UFlowNode_Dialogue* DialogueNode);
 
 	UFUNCTION()
-	void OnDialogueFlowStartEvent(UFlowAsset* DialogueFlow);
+	void OnDialogueFlowStartEvent(UFlowAsset_Dialogue* DialogueFlow);
 
 	UFUNCTION()
-	void OnDialogueFlowEndEvent(UFlowAsset* DialogueFlow);
+	void OnDialogueFlowEndEvent(UFlowAsset_Dialogue* DialogueFlow);
 #pragma endregion 
 
 #pragma region Properties
@@ -105,7 +106,7 @@ public:
 	 * @param InteractedCharacter In dialogue player interacted
 	 */
 	UFUNCTION(BlueprintCallable)
-	void StartDialogue(UFlowAsset* FlowAsset, AActor* InteractedCharacter);
+	void StartDialogue(UFlowAsset_Dialogue* FlowAsset, AActor* InteractedCharacter);
 
 	bool FindRole(FGameplayTag InTag) const;
 #pragma endregion 

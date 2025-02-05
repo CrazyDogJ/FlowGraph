@@ -40,14 +40,18 @@ bool UFlowNode_Dialogue::HasOptions() const
 
 void UFlowNode_Dialogue::ExecuteInput(const FName& PinName)
 {
+	if (auto Flow_Dialogue = Cast<UFlowAsset_Dialogue>(GetFlowAsset()))
+	{
+		Flow_Dialogue->CurrentDialogueNode = this;
+	}
+	
 	if (DialogueCameraCalculation)
 	{
 		DialogueCameraCalculation->InstanceDialogueNode = this;
 		DialogueCameraCalculation->SetupVariables();
 	}
-
-	auto StartNode = UFlowExtraFunctionLibrary::GetCurrentDialogueInfos(GetFlowAsset());
-	for (auto Actor : StartNode->GetIdentityActors())
+	
+	for (auto Actor : Cast<UFlowAsset_Dialogue>(GetFlowAsset())->GetIdentityActors())
 	{
 		if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
 		{
@@ -69,9 +73,8 @@ void UFlowNode_Dialogue::Finish()
 	{
 		DialogueCameraCalculation->ClearCamera();
 	}
-
-	auto StartNode = UFlowExtraFunctionLibrary::GetCurrentDialogueInfos(GetFlowAsset());
-	for (auto Actor : StartNode->GetIdentityActors())
+	
+	for (auto Actor : Cast<UFlowAsset_Dialogue>(GetFlowAsset())->GetIdentityActors())
 	{
 		if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
 		{
