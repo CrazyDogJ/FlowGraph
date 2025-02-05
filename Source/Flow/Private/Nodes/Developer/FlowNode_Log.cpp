@@ -1,6 +1,6 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
 
-#include "Nodes/Utils/FlowNode_Log.h"
+#include "Nodes/Developer/FlowNode_Log.h"
 #include "FlowLogChannels.h"
 #include "FlowSettings.h"
 
@@ -19,7 +19,7 @@ UFlowNode_Log::UFlowNode_Log(const FObjectInitializer& ObjectInitializer)
 	, TextColor(FColor::Yellow)
 {
 #if WITH_EDITOR
-	Category = TEXT("Utils");
+	Category = TEXT("Developer");
 	NodeDisplayStyle = FlowNodeStyle::Developer;
 #endif
 }

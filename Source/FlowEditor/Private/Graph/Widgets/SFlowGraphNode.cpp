@@ -55,12 +55,24 @@ void SFlowGraphNode::Construct(const FArguments& InArgs, UFlowGraphNode* InNode)
 	GraphNode = InNode;
 
 	FlowGraphNode = InNode;
+
+	check(FlowGraphNode);
 	FlowGraphNode->OnSignalModeChanged.BindRaw(this, &SFlowGraphNode::UpdateGraphNode);
+	FlowGraphNode->OnReconstructNodeCompleted.BindRaw(this, &SFlowGraphNode::UpdateGraphNode);
 
 	SetCursor(EMouseCursor::CardinalCross);
 	UpdateGraphNode();
 
 	bDragMarkerVisible = false;
+}
+
+SFlowGraphNode::~SFlowGraphNode()
+{
+	check(FlowGraphNode);
+	FlowGraphNode->OnSignalModeChanged.Unbind();
+	FlowGraphNode->OnReconstructNodeCompleted.Unbind();
+
+	FlowGraphNode = nullptr;
 }
 
 void SFlowGraphNode::GetNodeInfoPopups(FNodeInfoContext* Context, TArray<FGraphInformationPopupInfo>& Popups) const

@@ -1,6 +1,6 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
 
-#include "Asset/FlowDebuggerSubsystem.h"
+#include "Asset/FlowDebugEditorSubsystem.h"
 #include "Asset/FlowAssetEditor.h"
 #include "Asset/FlowMessageLogListing.h"
 
@@ -14,34 +14,34 @@
 #include "UnrealEdGlobals.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(FlowDebuggerSubsystem)
+#include UE_INLINE_GENERATED_CPP_BY_NAME(FlowDebugEditorSubsystem)
 
-#define LOCTEXT_NAMESPACE "FlowDebuggerSubsystem"
+#define LOCTEXT_NAMESPACE "FlowDebugEditorSubsystem"
 
-UFlowDebuggerSubsystem::UFlowDebuggerSubsystem()
+UFlowDebugEditorSubsystem::UFlowDebugEditorSubsystem()
 {
-	FEditorDelegates::BeginPIE.AddUObject(this, &UFlowDebuggerSubsystem::OnBeginPIE);
-	FEditorDelegates::EndPIE.AddUObject(this, &UFlowDebuggerSubsystem::OnEndPIE);
+	FEditorDelegates::BeginPIE.AddUObject(this, &UFlowDebugEditorSubsystem::OnBeginPIE);
+	FEditorDelegates::EndPIE.AddUObject(this, &UFlowDebugEditorSubsystem::OnEndPIE);
 
-	UFlowSubsystem::OnInstancedTemplateAdded.BindUObject(this, &UFlowDebuggerSubsystem::OnInstancedTemplateAdded);
-	UFlowSubsystem::OnInstancedTemplateRemoved.BindUObject(this, &UFlowDebuggerSubsystem::OnInstancedTemplateRemoved);
+	UFlowSubsystem::OnInstancedTemplateAdded.BindUObject(this, &UFlowDebugEditorSubsystem::OnInstancedTemplateAdded);
+	UFlowSubsystem::OnInstancedTemplateRemoved.BindUObject(this, &UFlowDebugEditorSubsystem::OnInstancedTemplateRemoved);
 }
 
-void UFlowDebuggerSubsystem::OnInstancedTemplateAdded(UFlowAsset* FlowAsset)
+void UFlowDebugEditorSubsystem::OnInstancedTemplateAdded(UFlowAsset* FlowAsset)
 {
 	if (!RuntimeLogs.Contains(FlowAsset))
 	{
 		RuntimeLogs.Add(FlowAsset, FFlowMessageLogListing::GetLogListing(FlowAsset, EFlowLogType::Runtime));
-		FlowAsset->OnRuntimeMessageAdded().AddUObject(this, &UFlowDebuggerSubsystem::OnRuntimeMessageAdded);
+		FlowAsset->OnRuntimeMessageAdded().AddUObject(this, &UFlowDebugEditorSubsystem::OnRuntimeMessageAdded);
 	}
 }
 
-void UFlowDebuggerSubsystem::OnInstancedTemplateRemoved(UFlowAsset* FlowAsset) const
+void UFlowDebugEditorSubsystem::OnInstancedTemplateRemoved(UFlowAsset* FlowAsset) const
 {
 	FlowAsset->OnRuntimeMessageAdded().RemoveAll(this);
 }
 
-void UFlowDebuggerSubsystem::OnRuntimeMessageAdded(const UFlowAsset* FlowAsset, const TSharedRef<FTokenizedMessage>& Message) const
+void UFlowDebugEditorSubsystem::OnRuntimeMessageAdded(const UFlowAsset* FlowAsset, const TSharedRef<FTokenizedMessage>& Message) const
 {
 	const TSharedPtr<class IMessageLogListing> Log = RuntimeLogs.FindRef(FlowAsset);
 	if (Log.IsValid())
@@ -51,13 +51,13 @@ void UFlowDebuggerSubsystem::OnRuntimeMessageAdded(const UFlowAsset* FlowAsset, 
 	}
 }
 
-void UFlowDebuggerSubsystem::OnBeginPIE(const bool bIsSimulating)
+void UFlowDebugEditorSubsystem::OnBeginPIE(const bool bIsSimulating)
 {
 	// clear all logs from a previous session
 	RuntimeLogs.Empty();
 }
 
-void UFlowDebuggerSubsystem::OnEndPIE(const bool bIsSimulating)
+void UFlowDebugEditorSubsystem::OnEndPIE(const bool bIsSimulating)
 {
 	for (const TPair<TWeakObjectPtr<UFlowAsset>, TSharedPtr<class IMessageLogListing>>& Log : RuntimeLogs)
 	{
@@ -65,7 +65,7 @@ void UFlowDebuggerSubsystem::OnEndPIE(const bool bIsSimulating)
 		{
 			FNotificationInfo Info{FText::FromString(TEXT("Flow Graph reported in-game issues"))};
 			Info.ExpireDuration = 15.0;
-			
+
 			Info.HyperlinkText = FText::Format(LOCTEXT("OpenFlowAssetHyperlink", "Open {0}"), FText::FromString(Log.Key->GetName()));
 			Info.Hyperlink = FSimpleDelegate::CreateLambda([this, Log]()
 			{
@@ -107,7 +107,7 @@ bool AreAllGameWorldPaused()
 	return bPaused;
 }
 
-void UFlowDebuggerSubsystem::PausePlaySession()
+void UFlowDebugEditorSubsystem::PausePlaySession()
 {
 	bool bPaused = false;
 	ForEachGameWorld([&](UWorld* World)
@@ -124,7 +124,7 @@ void UFlowDebuggerSubsystem::PausePlaySession()
 	}
 }
 
-bool UFlowDebuggerSubsystem::IsPlaySessionPaused()
+bool UFlowDebugEditorSubsystem::IsPlaySessionPaused()
 {
 	return AreAllGameWorldPaused();
 }
