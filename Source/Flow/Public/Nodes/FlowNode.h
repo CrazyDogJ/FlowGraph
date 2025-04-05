@@ -64,7 +64,7 @@ public:
 #endif
 
 	// Inherits Guid after graph node
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FlowNodeVisible")
 	FGuid NodeGuid;
 
 public:

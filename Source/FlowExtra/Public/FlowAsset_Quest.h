@@ -29,7 +29,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "SaveGame")
 	void LoadQuestInstance(const FFlowAssetSaveData& AssetRecord);
-
+	
+	virtual void StartFlow(IFlowDataPinValueSupplierInterface* DataPinValueSupplier) override;
+	
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif

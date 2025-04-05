@@ -4,6 +4,9 @@
 #include "FlowNode_QuestCommon.h"
 
 #include "FlowAsset.h"
+#include "FlowComponent_Quest.h"
+#include "FlowExtraGameplayTags.h"
+#include "FlowSubsystem.h"
 #include "QuestGlobalComponent.h"
 
 UFlowNode_QuestCommon::UFlowNode_QuestCommon()
@@ -17,6 +20,25 @@ UFlowNode_QuestCommon::UFlowNode_QuestCommon()
 
 void UFlowNode_QuestCommon::MarkThisGoalDirty(TEnumAsByte<EGoalState> GoalState)
 {
+	// Quest delegates
+	if (auto QuestFlow = Cast<UFlowAsset_Quest>(GetFlowAsset()))
+	{
+		auto Comps = GetFlowSubsystem()->GetFlowComponentsByTag(FlowQuestTags::FlowQuestComp, UFlowComponent_Quest::StaticClass(), false);
+		for (auto Comp : Comps)
+		{
+			if (auto Comp_Quest = Cast<UFlowComponent_Quest>(Comp))
+			{
+				for (auto Delegate : Comp_Quest->QuestDelegates)
+				{
+					if (Delegate->ListeningQuest == QuestFlow->GetTemplateAsset() && Delegate->ListeningQuestGoals.Find(NodeGuid) >= 0)
+					{
+						Delegate->OnQuestNodeStateChanged(this, GoalState);
+					}
+				}
+			}
+		}
+	}
+	
 	CurrentGoalState = GoalState;
 	auto QuestComp = Cast<UQuestGlobalComponent>(GetFlowAsset()->GetOwner());
 	QuestComp->MarkGoalDirty(this, GoalState);

@@ -3,6 +3,9 @@
 
 #include "FlowAsset_Quest.h"
 
+#include "FlowComponent_Quest.h"
+#include "FlowExtraGameplayTags.h"
+#include "FlowSubsystem.h"
 #include "QuestGlobalComponent.h"
 
 UFlowAsset_Quest::UFlowAsset_Quest(FObjectInitializer const&)
@@ -60,6 +63,26 @@ void UFlowAsset_Quest::LoadQuestInstance(const FFlowAssetSaveData& AssetRecord)
 	}
 
 	OnLoad();
+}
+
+void UFlowAsset_Quest::StartFlow(IFlowDataPinValueSupplierInterface* DataPinValueSupplier)
+{
+	Super::StartFlow(DataPinValueSupplier);
+
+	auto Comps = GetFlowSubsystem()->GetFlowComponentsByTag(FlowQuestTags::FlowQuestComp, UFlowComponent_Quest::StaticClass(), false);
+	for (auto Comp : Comps)
+	{
+		if (auto Comp_Quest = Cast<UFlowComponent_Quest>(Comp))
+		{
+			for (auto Delegate : Comp_Quest->QuestDelegates)
+			{
+				if (Delegate->ListeningQuest == GetTemplateAsset())
+				{
+					Delegate->OnQuestStart(this);
+				}
+			}
+		}
+	}
 }
 
 #if WITH_EDITOR
