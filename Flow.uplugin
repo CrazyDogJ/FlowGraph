@@ -20,14 +20,19 @@
 			"LoadingPhase": "PreDefault"
 		},
 		{
-			"Name": "FlowEditor",
-			"Type": "Editor",
-			"LoadingPhase": "PreDefault"
-		},
-		{
 			"Name": "FlowExtra",
 			"Type": "Runtime",
 			"LoadingPhase": "PreDefault"
+		},
+		{
+			"Name" : "FlowDebugger",
+			"Type" : "DeveloperTool",
+			"LoadingPhase" : "PreDefault"
+		},
+		{
+			"Name" : "FlowEditor",
+			"Type" : "Editor",
+			"LoadingPhase" : "PreDefault"
 		}
 	],
 	"Plugins": [

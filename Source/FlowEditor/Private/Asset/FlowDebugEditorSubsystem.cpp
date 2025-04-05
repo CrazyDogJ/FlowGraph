@@ -4,8 +4,6 @@
 #include "Asset/FlowAssetEditor.h"
 #include "Asset/FlowMessageLogListing.h"
 
-#include "FlowSubsystem.h"
-
 #include "Editor/UnrealEdEngine.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -20,30 +18,32 @@
 
 UFlowDebugEditorSubsystem::UFlowDebugEditorSubsystem()
 {
-	FEditorDelegates::BeginPIE.AddUObject(this, &UFlowDebugEditorSubsystem::OnBeginPIE);
-	FEditorDelegates::EndPIE.AddUObject(this, &UFlowDebugEditorSubsystem::OnEndPIE);
-
-	UFlowSubsystem::OnInstancedTemplateAdded.BindUObject(this, &UFlowDebugEditorSubsystem::OnInstancedTemplateAdded);
-	UFlowSubsystem::OnInstancedTemplateRemoved.BindUObject(this, &UFlowDebugEditorSubsystem::OnInstancedTemplateRemoved);
+	FEditorDelegates::BeginPIE.AddUObject(this, &ThisClass::OnBeginPIE);
+	FEditorDelegates::ResumePIE.AddUObject(this, &ThisClass::OnResumePIE);
+	FEditorDelegates::EndPIE.AddUObject(this, &ThisClass::OnEndPIE);
 }
 
-void UFlowDebugEditorSubsystem::OnInstancedTemplateAdded(UFlowAsset* FlowAsset)
+void UFlowDebugEditorSubsystem::OnInstancedTemplateAdded(UFlowAsset* AssetTemplate)
 {
-	if (!RuntimeLogs.Contains(FlowAsset))
+	Super::OnInstancedTemplateAdded(AssetTemplate);
+
+	if (!RuntimeLogs.Contains(AssetTemplate))
 	{
-		RuntimeLogs.Add(FlowAsset, FFlowMessageLogListing::GetLogListing(FlowAsset, EFlowLogType::Runtime));
-		FlowAsset->OnRuntimeMessageAdded().AddUObject(this, &UFlowDebugEditorSubsystem::OnRuntimeMessageAdded);
+		RuntimeLogs.Add(AssetTemplate, FFlowMessageLogListing::GetLogListing(AssetTemplate, EFlowLogType::Runtime));
+		AssetTemplate->OnRuntimeMessageAdded().AddUObject(this, &UFlowDebugEditorSubsystem::OnRuntimeMessageAdded);
 	}
 }
 
-void UFlowDebugEditorSubsystem::OnInstancedTemplateRemoved(UFlowAsset* FlowAsset) const
+void UFlowDebugEditorSubsystem::OnInstancedTemplateRemoved(UFlowAsset* AssetTemplate) const
 {
-	FlowAsset->OnRuntimeMessageAdded().RemoveAll(this);
+	AssetTemplate->OnRuntimeMessageAdded().RemoveAll(this);
+
+	Super::OnInstancedTemplateRemoved(AssetTemplate);
 }
 
-void UFlowDebugEditorSubsystem::OnRuntimeMessageAdded(const UFlowAsset* FlowAsset, const TSharedRef<FTokenizedMessage>& Message) const
+void UFlowDebugEditorSubsystem::OnRuntimeMessageAdded(const UFlowAsset* AssetTemplate, const TSharedRef<FTokenizedMessage>& Message) const
 {
-	const TSharedPtr<class IMessageLogListing> Log = RuntimeLogs.FindRef(FlowAsset);
+	const TSharedPtr<class IMessageLogListing> Log = RuntimeLogs.FindRef(AssetTemplate);
 	if (Log.IsValid())
 	{
 		Log->AddMessage(Message);
@@ -57,8 +57,15 @@ void UFlowDebugEditorSubsystem::OnBeginPIE(const bool bIsSimulating)
 	RuntimeLogs.Empty();
 }
 
+void UFlowDebugEditorSubsystem::OnResumePIE(const bool bIsSimulating)
+{
+	ClearHitBreakpoints();
+}
+
 void UFlowDebugEditorSubsystem::OnEndPIE(const bool bIsSimulating)
 {
+	ClearHitBreakpoints();
+
 	for (const TPair<TWeakObjectPtr<UFlowAsset>, TSharedPtr<class IMessageLogListing>>& Log : RuntimeLogs)
 	{
 		if (Log.Key.IsValid() && Log.Value->NumMessages(EMessageSeverity::Warning) > 0)
@@ -85,48 +92,12 @@ void UFlowDebugEditorSubsystem::OnEndPIE(const bool bIsSimulating)
 	}
 }
 
-void ForEachGameWorld(const TFunction<void(UWorld*)>& Func)
+void UFlowDebugEditorSubsystem::PauseSession()
 {
-	for (const FWorldContext& PieContext : GUnrealEd->GetWorldContexts())
-	{
-		UWorld* PlayWorld = PieContext.World();
-		if (PlayWorld && PlayWorld->IsGameWorld())
-		{
-			Func(PlayWorld);
-		}
-	}
-}
-
-bool AreAllGameWorldPaused()
-{
-	bool bPaused = true;
-	ForEachGameWorld([&](const UWorld* World)
-	{
-		bPaused = bPaused && World->bDebugPauseExecution;
-	});
-	return bPaused;
-}
-
-void UFlowDebugEditorSubsystem::PausePlaySession()
-{
-	bool bPaused = false;
-	ForEachGameWorld([&](UWorld* World)
-	{
-		if (!World->bDebugPauseExecution)
-		{
-			World->bDebugPauseExecution = true;
-			bPaused = true;
-		}
-	});
-	if (bPaused)
+	if (!GUnrealEd->SetPIEWorldsPaused(true))
 	{
 		GUnrealEd->PlaySessionPaused();
 	}
-}
-
-bool UFlowDebugEditorSubsystem::IsPlaySessionPaused()
-{
-	return AreAllGameWorldPaused();
 }
 
 #undef LOCTEXT_NAMESPACE
