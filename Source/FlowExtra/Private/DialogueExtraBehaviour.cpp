@@ -2,3 +2,8 @@
 
 
 #include "DialogueExtraBehaviour.h"
+
+class UWorld* UDialogueExtraBehaviour::GetWorld() const
+{
+	return UObject::GetWorld();
+}

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "FlowAsset.h"
+#include "FlowNode_Dialogue.h"
 #include "FlowAsset_Dialogue.generated.h"
 
 /**

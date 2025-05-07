@@ -26,4 +26,7 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FGameplayTagContainer GameplayTags;
+
+	virtual class UWorld* GetWorld() const override;
+	virtual bool ImplementsGetWorld() const override {return true;};
 };

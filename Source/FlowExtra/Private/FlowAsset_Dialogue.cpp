@@ -4,6 +4,7 @@
 
 #include "DialogueComponent_Base.h"
 #include "FlowComponent.h"
+#include "FlowExtraGameplayTags.h"
 #include "Kismet/KismetSystemLibrary.h"
 
 void UFlowAsset_Dialogue::FinishFlow(const EFlowFinishPolicy InFinishPolicy, const bool bRemoveInstance)
@@ -32,9 +33,9 @@ void UFlowAsset_Dialogue::UpdateNearNPC()
 {
 	// Setup Ignore Actors
 	TArray<AActor*> IgnoreActors;
-	UGameplayTagsManager& TagsManager = UGameplayTagsManager::Get();
-	auto PlayerTag = TagsManager.RequestGameplayTag(TEXT("Flow.DialogInvolver.Player"));
-	auto DialogOwnerTag = TagsManager.RequestGameplayTag(TEXT("Flow.DialogInvolver.DialogOwner"));
+	FGameplayTag PlayerTag = FlowDialogueTags::FlowDialoguePlayer;
+	FGameplayTag DialogOwnerTag = FlowDialogueTags::FlowDialogueOwner;
+	
 	if (auto Found = IdentityActors.Find(PlayerTag))
 	{
 		IgnoreActors.Add(Found->Get());
@@ -87,9 +88,8 @@ void UFlowAsset_Dialogue::UpdateNearNPC()
 
 void UFlowAsset_Dialogue::SetupVariables(AActor* Player, AActor* DialogueObject)
 {
-	UGameplayTagsManager& TagsManager = UGameplayTagsManager::Get();
-	auto PlayerTag = TagsManager.RequestGameplayTag(TEXT("Flow.DialogInvolver.Player"));
-	auto DialogOwnerTag = TagsManager.RequestGameplayTag(TEXT("Flow.DialogInvolver.DialogOwner"));
+	const FGameplayTag PlayerTag = FlowDialogueTags::FlowDialoguePlayer;
+	const FGameplayTag DialogOwnerTag = FlowDialogueTags::FlowDialogueOwner;
 	
 	IdentityActors.Add(PlayerTag, Player);
 	IdentityActors.Add(DialogOwnerTag, DialogueObject);

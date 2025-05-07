@@ -8,7 +8,7 @@
 #include "DialogueWidget.h"
 #include "FlowAsset.h"
 #include "FlowAsset_Dialogue.h"
-#include "FlowExtraFunctionLibrary.h"
+#include "FlowExtraGameplayTags.h"
 #include "FlowSubsystem.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
@@ -98,17 +98,33 @@ void UDialogueComponent_Base::OnDialogueNodeEndEvent(UFlowNode_Dialogue* Dialogu
 
 void UDialogueComponent_Base::OnDialogueFlowStartEvent(UFlowAsset_Dialogue* DialogueFlow)
 {
-	if (auto Character = Cast<ACharacter>(GetOwner()))
+	const auto DialoguePlayer = DialogueFlow->IdentityActors.Find(FlowDialogueTags::FlowDialoguePlayer);
+	const auto DialogueFlowOwner = DialogueFlow->IdentityActors.Find(FlowDialogueTags::FlowDialogueOwner);
+
+	if (!DialoguePlayer)
+	{
+		return;
+	}
+
+	// Check if interacted player is owner.
+	if (const auto Character = Cast<ACharacter>(DialoguePlayer->Get());
+		Character && GetOwner() == DialoguePlayer->Get())
 	{
 		if (Character->IsLocallyControlled())
 		{
 			DialogueWidget = CreateWidget<UDialogueWidget>(Character->GetLocalViewingPlayerController(), WidgetClass);
 			if (DialogueWidget)
 			{
-				DialogueWidget->DialogueComponent = this;
-				DialogueWidget->AddToViewport();
-				Character->GetLocalViewingPlayerController()->SetShowMouseCursor(true);
-				UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(Character->GetLocalViewingPlayerController(), DialogueWidget);
+				if (DialogueFlowOwner)
+				{
+					const auto ActorComp = DialogueFlowOwner->Get()->GetComponentByClass(UDialogueComponent_Base::StaticClass());
+					const auto DialogueComp = Cast<UDialogueComponent_Base>(ActorComp);
+					
+					DialogueWidget->DialogueComponent = DialogueComp;
+					DialogueWidget->AddToViewport();
+					Character->GetLocalViewingPlayerController()->SetShowMouseCursor(true);
+					UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(Character->GetLocalViewingPlayerController(), DialogueWidget, EMouseLockMode::DoNotLock, true);
+				}
 			}
 		}
 	}
@@ -236,8 +252,8 @@ void UDialogueComponent_Base::StartDialogue(UFlowAsset_Dialogue* FlowAsset, AAct
 
 bool UDialogueComponent_Base::FindRole(FGameplayTag InTag) const
 {
-	const bool bIsPlayer = CurrentRole == EDR_Player && InTag ==  UGameplayTagsManager::Get().RequestGameplayTag(TEXT("Flow.DialogInvolver.Player"));
-	const bool bIsDialogueOwner = CurrentRole == EDR_DialogueOwner && InTag ==  UGameplayTagsManager::Get().RequestGameplayTag(TEXT("Flow.DialogInvolver.DialogOwner"));
+	const bool bIsPlayer = CurrentRole == EDR_Player && InTag == FlowDialogueTags::FlowDialoguePlayer;
+	const bool bIsDialogueOwner = CurrentRole == EDR_DialogueOwner && InTag == FlowDialogueTags::FlowDialoguePlayer;
 	bool bIsExtraInvolver = false;
 	if (auto FlowComp = Cast<UFlowComponent>(GetOwner()->GetComponentByClass(UFlowComponent::StaticClass())))
 	{

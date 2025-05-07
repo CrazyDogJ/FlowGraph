@@ -3,10 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "DialogueComponent_Base.h"
 #include "Blueprint/UserWidget.h"
 #include "DialogueWidget.generated.h"
-
-class DialogueComponent_Base;
 
 /**
  * 
@@ -17,6 +16,7 @@ class FLOWEXTRA_API UDialogueWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	/** Dialogue asset owner component. */
 	UPROPERTY(BlueprintReadOnly)
 	UDialogueComponent_Base* DialogueComponent;
 };
