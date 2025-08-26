@@ -91,7 +91,10 @@ void UFlowNode_Dialogue::ExecuteInput(const FName& PinName)
 
 	for (auto ExtraBehaviour : DialogueExtraBehaviours)
 	{
-		ExtraBehaviour->OnDialogueNodeStart(this);
+		if (ExtraBehaviour)
+		{
+			ExtraBehaviour->OnDialogueNodeStart(this);
+		}
 	}
 	
 	Super::ExecuteInput(PinName);
@@ -114,7 +117,10 @@ void UFlowNode_Dialogue::Finish()
 
 	for (auto ExtraBehaviour : DialogueExtraBehaviours)
 	{
-		ExtraBehaviour->OnDialogueNodeEnd(this);
+		if (ExtraBehaviour)
+		{
+			ExtraBehaviour->OnDialogueNodeEnd(this);
+		}
 	}
 
 	CurrentTextIndex = -1;
@@ -128,21 +134,18 @@ void UFlowNode_Dialogue::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 	if (PropertyChangedEvent.Property
 		&& PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UFlowNode_Dialogue, Options))
 	{
+		TArray<FFlowPin> Pins;
 		if (Options.Num() > 0)
 		{
-			OutputPins.Empty();
 			for (auto Option : Options)
 			{
 				FFlowPin Pin;
 				Pin.PinName = Option.Key;
-				OutputPins.AddUnique(Pin);
+				Pins.AddUnique(Pin);
 			}
 		}
-		else
-		{
-			OutputPins = { DefaultOutputPin };
-		}
-		OnReconstructionRequested.ExecuteIfBound();
+
+		RebuildPinArray(Pins, OutputPins, DefaultOutputPin);
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
