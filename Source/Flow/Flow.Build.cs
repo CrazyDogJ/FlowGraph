@@ -10,8 +10,7 @@ public class Flow : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new[]
 		{
-			"LevelSequence",
-			"StructUtils",
+			"LevelSequence"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new[]

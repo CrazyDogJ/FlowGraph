@@ -2,9 +2,10 @@
 
 #pragma once
 
+#include "Kismet/BlueprintFunctionLibrary.h"
+
 #include "FlowDataPinProperties.h"
 #include "FlowDataPinResults.h"
-
 #include "FlowDataPinBlueprintLibrary.generated.h"
 
 // Auto-cast operators for blueprint to their inner types
