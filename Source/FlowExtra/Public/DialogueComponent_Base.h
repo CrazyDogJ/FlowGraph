@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "CustomSpringCamera.h"
 #include "FlowAsset_Dialogue.h"
-#include "FlowComponent.h"
 #include "FlowNode_Dialogue.h"
 #include "DialogueComponent_Base.generated.h"
 
@@ -20,14 +19,6 @@ enum EDialogMontageMode : uint8
 	EDMM_Play = 0,
 	EDMM_StopInput = 1,
 	EDMM_StopCurrent = 2
-};
-
-UENUM(BlueprintType)
-enum EDialogRole : uint8
-{
-	EDR_Player = 0,
-	EDR_DialogueOwner = 1,
-	EDR_Extra = 2
 };
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent), Blueprintable)
@@ -86,8 +77,8 @@ public:
 	UPROPERTY(BlueprintReadOnly, Replicated)
 	bool bInDialogue = false;
 
-	UPROPERTY(BlueprintReadOnly, Replicated)
-	TEnumAsByte<EDialogRole> CurrentRole = EDR_Extra;
+	UPROPERTY(BlueprintReadOnly)
+	UFlowAsset_Dialogue* CurrentDialogueInstance;
 
 	UPROPERTY(BlueprintReadOnly)
 	ACustomSpringCamera* CurrentCamera;
@@ -110,7 +101,11 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable)
 	void StartDialogue(UFlowAsset_Dialogue* FlowAsset, AActor* InteractedCharacter);
+	
+	bool FindRole(const FGameplayTag& InTag) const;
+#pragma endregion
 
-	bool FindRole(FGameplayTag InTag) const;
-#pragma endregion 
+protected:
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 };

@@ -18,7 +18,7 @@ void UFlowComponent_Quest::BeginPlay()
 	}
 
 	// Call Delegates
-	auto Comp = UGameplayStatics::GetGameState(GetWorld())->GetComponentByClass(UQuestGlobalComponent::StaticClass());
+	auto Comp = UGameplayStatics::GetGameState(GetWorld())->GetComponentByClass<UQuestGlobalComponent>();
 	auto QuestInstances = GetFlowSubsystem()->GetRootInstancesByOwner(Comp);
 	for (auto Instance : QuestInstances)
 	{

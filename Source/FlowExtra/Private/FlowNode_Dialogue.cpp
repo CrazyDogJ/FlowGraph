@@ -33,7 +33,7 @@ void UFlowNode_Dialogue::ContinueDialogue_Implementation(int SelectionIndex)
 		CurrentTextIndex ++;
 		for (auto Actor : Cast<UFlowAsset_Dialogue>(GetFlowAsset())->GetIdentityActors())
 		{
-			if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
+			if (const auto Comp = Actor->GetComponentByClass<UDialogueComponent_Base>())
 			{
 				Comp->OnDialogueNodeTextChanged.Broadcast(this);
 			}
@@ -82,7 +82,7 @@ void UFlowNode_Dialogue::ExecuteInput(const FName& PinName)
 	
 	for (auto Actor : Cast<UFlowAsset_Dialogue>(GetFlowAsset())->GetIdentityActors())
 	{
-		if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
+		if (const auto Comp = Actor->GetComponentByClass<UDialogueComponent_Base>())
 		{
 			Comp->OnDialogueNodeStart.Broadcast(this);
 			Comp->OnDialogueNodeTextChanged.Broadcast(this);
@@ -109,7 +109,7 @@ void UFlowNode_Dialogue::Finish()
 	
 	for (auto Actor : Cast<UFlowAsset_Dialogue>(GetFlowAsset())->GetIdentityActors())
 	{
-		if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
+		if (const auto Comp = Actor->GetComponentByClass<UDialogueComponent_Base>())
 		{
 			Comp->OnDialogueNodeEnd.Broadcast(this);
 		}

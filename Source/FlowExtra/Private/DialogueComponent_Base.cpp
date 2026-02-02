@@ -12,16 +12,12 @@
 #include "FlowSubsystem.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
-#include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
 UDialogueComponent_Base::UDialogueComponent_Base()
 {
-	OnDialogueNodeStart.AddDynamic(this, &UDialogueComponent_Base::OnDialogueNodeStartEvent);
-	OnDialogueNodeEnd.AddDynamic(this, &UDialogueComponent_Base::OnDialogueNodeEndEvent);
-	OnDialogueFlowStart.AddDynamic(this, &UDialogueComponent_Base::OnDialogueFlowStartEvent);
-	OnDialogueFlowEnd.AddDynamic(this, &UDialogueComponent_Base::OnDialogueFlowEndEvent);
+	SetIsReplicatedByDefault(true);
 }
 
 void UDialogueComponent_Base::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -30,14 +26,13 @@ void UDialogueComponent_Base::GetLifetimeReplicatedProps(TArray<FLifetimePropert
 
 	DOREPLIFETIME(ThisClass, CurrentDialogueMontage);
 	DOREPLIFETIME(ThisClass, bInDialogue);
-	DOREPLIFETIME(ThisClass, CurrentRole);
 }
 
 void UDialogueComponent_Base::OnDialogueNodeStartEvent(UFlowNode_Dialogue* DialogueNode)
 {
-	if (auto Character = Cast<ACharacter>(GetOwner()))
+	if (auto Pawn = Cast<APawn>(GetOwner()))
 	{
-		if (Character->IsLocallyControlled() && DialogueNode->DialogueCameraCalculation && !Character->IsBotControlled())
+		if (Pawn->IsLocallyControlled() && DialogueNode->DialogueCameraCalculation && !Pawn->IsBotControlled())
 		{
 			if (CurrentCamera)
 			{
@@ -98,8 +93,10 @@ void UDialogueComponent_Base::OnDialogueNodeEndEvent(UFlowNode_Dialogue* Dialogu
 
 void UDialogueComponent_Base::OnDialogueFlowStartEvent(UFlowAsset_Dialogue* DialogueFlow)
 {
-	const auto DialoguePlayer = DialogueFlow->IdentityActors.Find(FlowDialogueTags::FlowDialoguePlayer);
-	const auto DialogueFlowOwner = DialogueFlow->IdentityActors.Find(FlowDialogueTags::FlowDialogueOwner);
+	CurrentDialogueInstance = DialogueFlow;
+	
+	const auto DialoguePlayer = CurrentDialogueInstance->IdentityActors.Find(FlowDialogueTags::FlowDialoguePlayer);
+	const auto DialogueFlowOwner = CurrentDialogueInstance->IdentityActors.Find(FlowDialogueTags::FlowDialogueOwner);
 
 	if (!DialoguePlayer)
 	{
@@ -107,24 +104,20 @@ void UDialogueComponent_Base::OnDialogueFlowStartEvent(UFlowAsset_Dialogue* Dial
 	}
 
 	// Check if interacted player is owner.
-	if (const auto Character = Cast<ACharacter>(DialoguePlayer->Get());
-		Character && GetOwner() == DialoguePlayer->Get())
+	const auto Pawn = Cast<APawn>(GetOwner());
+	if (Pawn && Pawn->IsLocalPlayerControllerViewingAPawn())
 	{
-		if (Character->IsLocallyControlled())
+		DialogueWidget = CreateWidget<UDialogueWidget>(Pawn->GetLocalViewingPlayerController(), WidgetClass);
+		if (DialogueWidget)
 		{
-			DialogueWidget = CreateWidget<UDialogueWidget>(Character->GetLocalViewingPlayerController(), WidgetClass);
-			if (DialogueWidget)
+			if (DialogueFlowOwner)
 			{
-				if (DialogueFlowOwner)
-				{
-					const auto ActorComp = DialogueFlowOwner->Get()->GetComponentByClass(UDialogueComponent_Base::StaticClass());
-					const auto DialogueComp = Cast<UDialogueComponent_Base>(ActorComp);
+				const auto DialogueComp = DialogueFlowOwner->Get()->GetComponentByClass<UDialogueComponent_Base>();
 					
-					DialogueWidget->DialogueComponent = DialogueComp;
-					DialogueWidget->AddToViewport();
-					Character->GetLocalViewingPlayerController()->SetShowMouseCursor(true);
-					UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(Character->GetLocalViewingPlayerController(), DialogueWidget, EMouseLockMode::DoNotLock, true);
-				}
+				DialogueWidget->DialogueComponent = DialogueComp;
+				DialogueWidget->AddToViewport();
+				Pawn->GetLocalViewingPlayerController()->SetShowMouseCursor(true);
+				UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(Pawn->GetLocalViewingPlayerController(), DialogueWidget, EMouseLockMode::DoNotLock, true);
 			}
 		}
 	}
@@ -139,9 +132,9 @@ void UDialogueComponent_Base::OnDialogueFlowEndEvent(UFlowAsset_Dialogue* Dialog
 		CharacterPlayMontage(nullptr, EDMM_StopCurrent);
 	}
 
-	if (auto Character = Cast<ACharacter>(GetOwner()))
+	if (auto Pawn = Cast<APawn>(GetOwner()))
 	{
-		if (Character->IsLocallyControlled())
+		if (Pawn->IsLocallyControlled())
 		{
 			if (DialogueWidget)
 			{
@@ -161,7 +154,8 @@ void UDialogueComponent_Base::OnDialogueFlowEndEvent(UFlowAsset_Dialogue* Dialog
 			}
 		}
 	}
-	
+
+	CurrentDialogueInstance = nullptr;
 	bInDialogue = false;
 }
 
@@ -229,36 +223,44 @@ void UDialogueComponent_Base::SetupVariables(UPrimitiveComponent* InPrimitiveCom
 
 void UDialogueComponent_Base::StartDialogue(UFlowAsset_Dialogue* FlowAsset, AActor* InteractedCharacter)
 {
-	// invalid ptr
 	if (!FlowAsset || !InteractedCharacter)
 	{
 		return;
 	}
 
-	// Check is a dialogue flow asset
-	//const bool bIsDialogueFlow = Cast<UFlowAsset_Dialogue>(FlowAsset);
-	//if (!bIsDialogueFlow)
-	//{
-	//	UE_LOG(LogTemp, Error, TEXT("You are trying to start a invalid dialogue flow. Please check whether %s has a Dialogue_Start node."), *FlowAsset->GetName());
-	//	return;
-	//}
-
-	//Start
 	if (auto FlowInstance = GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>()->CreateRootFlow(this, FlowAsset))
 	{
 		Cast<UFlowAsset_Dialogue>(FlowInstance)->SetupVariables(InteractedCharacter, GetOwner());
 	}
 }
 
-bool UDialogueComponent_Base::FindRole(FGameplayTag InTag) const
+bool UDialogueComponent_Base::FindRole(const FGameplayTag& InTag) const
 {
-	const bool bIsPlayer = CurrentRole == EDR_Player && InTag == FlowDialogueTags::FlowDialoguePlayer;
-	const bool bIsDialogueOwner = CurrentRole == EDR_DialogueOwner && InTag == FlowDialogueTags::FlowDialoguePlayer;
-	bool bIsExtraInvolver = false;
-	if (auto FlowComp = Cast<UFlowComponent>(GetOwner()->GetComponentByClass(UFlowComponent::StaticClass())))
+	if (const auto Found = CurrentDialogueInstance->IdentityActors.Find(InTag))
 	{
-		bIsExtraInvolver = CurrentRole == EDR_Extra && FlowComp->IdentityTags.HasTag(InTag);
+		const AActor* Actor = *Found;
+		return Actor == GetOwner();
 	}
 	
-	return bIsPlayer || bIsDialogueOwner || bIsExtraInvolver;
+	return false;
+}
+
+void UDialogueComponent_Base::BeginPlay()
+{
+	Super::BeginPlay();
+	
+	OnDialogueNodeStart.AddDynamic(this, &UDialogueComponent_Base::OnDialogueNodeStartEvent);
+	OnDialogueNodeEnd.AddDynamic(this, &UDialogueComponent_Base::OnDialogueNodeEndEvent);
+	OnDialogueFlowStart.AddDynamic(this, &UDialogueComponent_Base::OnDialogueFlowStartEvent);
+	OnDialogueFlowEnd.AddDynamic(this, &UDialogueComponent_Base::OnDialogueFlowEndEvent);
+}
+
+void UDialogueComponent_Base::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+
+	OnDialogueNodeStart.RemoveAll(this);
+	OnDialogueNodeEnd.RemoveAll(this);
+	OnDialogueFlowStart.RemoveAll(this);
+	OnDialogueFlowEnd.RemoveAll(this);
 }

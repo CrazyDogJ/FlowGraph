@@ -1,6 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-#include "FlowAsset_Dialogue.h"
+﻿#include "FlowAsset_Dialogue.h"
 
 #include "DialogueComponent_Base.h"
 #include "FlowComponent.h"
@@ -10,19 +8,32 @@
 void UFlowAsset_Dialogue::FinishFlow(const EFlowFinishPolicy InFinishPolicy, const bool bRemoveInstance)
 {
 	CurrentDialogueNode = nullptr;
-	
+
+	// Broadcast flow end events.
 	for (auto Actor : GetIdentityActors())
 	{
-		if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
+		if (const auto Comp = Actor->GetComponentByClass<UDialogueComponent_Base>())
 		{
 			Comp->OnDialogueFlowEnd.Broadcast(this);
 		}
 	}
+
+	IdentityActors.Empty();
 	
 	Super::FinishFlow(InFinishPolicy, bRemoveInstance);
 }
 
-TArray<AActor*> UFlowAsset_Dialogue::GetIdentityActors()
+AActor* UFlowAsset_Dialogue::FindIdentityActors(const FGameplayTag InTag)
+{
+	if (const auto Found = IdentityActors.Find(InTag))
+	{
+		return *Found;
+	}
+
+	return nullptr;
+}
+
+TArray<AActor*> UFlowAsset_Dialogue::GetIdentityActors() const
 {
 	TArray<TObjectPtr<AActor>> Result;
 	IdentityActors.GenerateValueArray(Result);
@@ -32,18 +43,7 @@ TArray<AActor*> UFlowAsset_Dialogue::GetIdentityActors()
 void UFlowAsset_Dialogue::UpdateNearNPC()
 {
 	// Setup Ignore Actors
-	TArray<AActor*> IgnoreActors;
-	FGameplayTag PlayerTag = FlowDialogueTags::FlowDialoguePlayer;
-	FGameplayTag DialogOwnerTag = FlowDialogueTags::FlowDialogueOwner;
-	
-	if (auto Found = IdentityActors.Find(PlayerTag))
-	{
-		IgnoreActors.Add(Found->Get());
-	}
-	if (auto Found = IdentityActors.Find(DialogOwnerTag))
-	{
-		IgnoreActors.Add(Found->Get());
-	}
+	const TArray<AActor*> IgnoreActors = GetIdentityActors();
 
 	// Find center actor
 	TObjectPtr<AActor> CenterActor;
@@ -56,6 +56,7 @@ void UFlowAsset_Dialogue::UpdateNearNPC()
 		return;
 	}
 
+	// TODO : Default get nearby logic, will make it virtual later.
 	// Radius sweep
 	TArray<TEnumAsByte<EObjectTypeQuery>> QueryObjectTypes;
 	QueryObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
@@ -73,7 +74,7 @@ void UFlowAsset_Dialogue::UpdateNearNPC()
 		if (!Trace)
 		{
 			// Update list
-			if (auto FlowComponent = Cast<UFlowComponent>(Actor->GetComponentByClass(UFlowComponent::StaticClass())))
+			if (auto FlowComponent = Actor->GetComponentByClass<UFlowComponent>())
 			{
 				FGameplayTagContainer Container = FGameplayTagContainer::CreateFromArray(IdentityTags);
 				auto MatchContainer = FlowComponent->IdentityTags.FilterExact(Container);
@@ -88,6 +89,8 @@ void UFlowAsset_Dialogue::UpdateNearNPC()
 
 void UFlowAsset_Dialogue::SetupVariables(AActor* Player, AActor* DialogueObject)
 {
+	IdentityActors.Empty();
+	
 	const FGameplayTag PlayerTag = FlowDialogueTags::FlowDialoguePlayer;
 	const FGameplayTag DialogOwnerTag = FlowDialogueTags::FlowDialogueOwner;
 	
@@ -95,10 +98,11 @@ void UFlowAsset_Dialogue::SetupVariables(AActor* Player, AActor* DialogueObject)
 	IdentityActors.Add(DialogOwnerTag, DialogueObject);
 
 	UpdateNearNPC();
-	
+
+	// Broadcast flow begin event.
 	for (const auto Actor : GetIdentityActors())
 	{
-		if (const auto Comp = Cast<UDialogueComponent_Base>(Actor->GetComponentByClass(UDialogueComponent_Base::StaticClass())))
+		if (const auto Comp = Actor->GetComponentByClass<UDialogueComponent_Base>())
 		{
 			Comp->OnDialogueFlowStart.Broadcast(this);
 		}

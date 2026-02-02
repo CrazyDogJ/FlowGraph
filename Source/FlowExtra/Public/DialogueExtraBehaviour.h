@@ -23,9 +23,6 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent)
 	void OnDialogueNodeEnd(UFlowNode_Dialogue* DialogueNode);
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FGameplayTagContainer GameplayTags;
 
 	virtual class UWorld* GetWorld() const override;
 	virtual bool ImplementsGetWorld() const override {return true;};

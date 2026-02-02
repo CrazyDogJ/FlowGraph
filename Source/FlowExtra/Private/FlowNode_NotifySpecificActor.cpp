@@ -32,7 +32,7 @@ void UFlowNode_NotifySpecificActor::ExecuteInput(const FName& PinName)
 
 void UFlowNode_NotifySpecificActor::StartObserving()
 {
-	FlowComponent = Cast<UFlowComponent>(Cast<UActorComponent>(GetFlowAsset()->GetOwner())->GetOwner()->GetComponentByClass(UFlowComponent::StaticClass()));
+	FlowComponent = Cast<UActorComponent>(GetFlowAsset()->GetOwner())->GetOwner()->GetComponentByClass<UFlowComponent>();
 	if (FlowComponent != nullptr)
 	{
 		FlowComponent->OnNotifyFromComponent.AddUObject(this, &UFlowNode_NotifySpecificActor::OnNotifyFromComponent);
