@@ -85,6 +85,8 @@ public:
 #pragma endregion
 
 #pragma region Functions
+	UDialogueWidget* GetOrCreateDialogueWidget(const AActor* FlowOwner);
+	
 	UFUNCTION(BlueprintCallable, NetMulticast, Reliable)
 	void CharacterPlayMontage(UAnimMontage* AnimMontage, EDialogMontageMode Mode);
 

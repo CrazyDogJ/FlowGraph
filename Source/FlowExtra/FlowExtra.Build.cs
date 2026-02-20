@@ -9,7 +9,9 @@ public class FlowExtra : ModuleRules
         PublicDependencyModuleNames.AddRange(
             new string[]
             {
-                "Core", "Engine"
+                "Core", 
+                "Engine",
+                "UMG",
             }
         );
 

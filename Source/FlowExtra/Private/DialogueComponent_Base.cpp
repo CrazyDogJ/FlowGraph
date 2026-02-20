@@ -102,24 +102,14 @@ void UDialogueComponent_Base::OnDialogueFlowStartEvent(UFlowAsset_Dialogue* Dial
 	{
 		return;
 	}
-
-	// Check if interacted player is owner.
-	const auto Pawn = Cast<APawn>(GetOwner());
-	if (Pawn && Pawn->IsLocalPlayerControllerViewingAPawn())
+	
+	// Try to create dialogue and check dialogue widget valid.
+	GetOrCreateDialogueWidget(DialogueFlowOwner->Get());
+	if (DialogueWidget && !DialogueWidget->IsInViewport())
 	{
-		DialogueWidget = CreateWidget<UDialogueWidget>(Pawn->GetLocalViewingPlayerController(), WidgetClass);
-		if (DialogueWidget)
-		{
-			if (DialogueFlowOwner)
-			{
-				const auto DialogueComp = DialogueFlowOwner->Get()->GetComponentByClass<UDialogueComponent_Base>();
-					
-				DialogueWidget->DialogueComponent = DialogueComp;
-				DialogueWidget->AddToViewport();
-				Pawn->GetLocalViewingPlayerController()->SetShowMouseCursor(true);
-				UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(Pawn->GetLocalViewingPlayerController(), DialogueWidget, EMouseLockMode::DoNotLock, true);
-			}
-		}
+		DialogueWidget->AddToViewport();
+		DialogueWidget->GetOwningPlayer()->SetShowMouseCursor(true);
+		UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(DialogueWidget->GetOwningPlayer(), DialogueWidget, EMouseLockMode::DoNotLock, true);
 	}
 
 	bInDialogue = true;
@@ -136,13 +126,13 @@ void UDialogueComponent_Base::OnDialogueFlowEndEvent(UFlowAsset_Dialogue* Dialog
 	{
 		if (Pawn->IsLocallyControlled())
 		{
-			if (DialogueWidget)
+			if (DialogueWidget->IsInViewport())
 			{
 				DialogueWidget->GetOwningPlayer()->SetShowMouseCursor(false);
 				UWidgetBlueprintLibrary::SetInputMode_GameOnly(DialogueWidget->GetOwningPlayer(), true);
 				DialogueWidget->RemoveFromParent();
-				DialogueWidget = nullptr;
 			}
+			
 			if (CurrentCamera)
 			{
 				CurrentCamera->Destroy();
@@ -213,6 +203,33 @@ void UDialogueComponent_Base::CharacterSetMorphs_Implementation(const TArray<FNa
 			Skel->SetMorphTarget(MorphNames[id], bSetOrClear ? MorphAlpha[id] : 0.0f);
 		}
 	}
+}
+
+UDialogueWidget* UDialogueComponent_Base::GetOrCreateDialogueWidget(const AActor* FlowOwner)
+{
+	if (DialogueWidget)
+	{
+		return DialogueWidget;
+	}
+	
+	// Check if interacted player is owner.
+	const auto Pawn = Cast<APawn>(GetOwner());
+	if (Pawn && Pawn->IsLocalPlayerControllerViewingAPawn())
+	{
+		if (const auto ResultDialogueWidget = CreateWidget<UDialogueWidget>(Pawn->GetLocalViewingPlayerController(), WidgetClass))
+		{
+			if (FlowOwner)
+			{
+				const auto DialogueComp = FlowOwner->GetComponentByClass<UDialogueComponent_Base>();
+					
+				ResultDialogueWidget->DialogueComponent = DialogueComp;
+				DialogueWidget = ResultDialogueWidget;
+				return ResultDialogueWidget;
+			}
+		}
+	}
+	
+	return nullptr;
 }
 
 void UDialogueComponent_Base::SetupVariables(UPrimitiveComponent* InPrimitiveComponent, FName InComponentSocket)
