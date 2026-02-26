@@ -92,6 +92,13 @@ void UDialogueWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 	}
 }
 
+void UDialogueWidget::ReleaseSlateResources(bool bReleaseChildren)
+{
+	Super::ReleaseSlateResources(bReleaseChildren);
+
+	ButtonPool.ReleaseAllSlateResources();
+}
+
 void UDialogueWidget::SetTextPoping(const bool In)
 {
 	bTextPoping = In;

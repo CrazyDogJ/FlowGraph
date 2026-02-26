@@ -16,7 +16,7 @@ struct FFlowDataLayerState
 	TSoftObjectPtr<UDataLayerAsset> DataLayerAsset;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	EDataLayerRuntimeState DataLayerState;
+	EDataLayerRuntimeState DataLayerState = EDataLayerRuntimeState::Activated;
 };
 
 /**

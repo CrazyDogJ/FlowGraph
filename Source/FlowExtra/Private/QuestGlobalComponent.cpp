@@ -5,7 +5,6 @@
 
 #include "FlowExtraFunctionLibrary.h"
 #include "FlowNode_QuestFinish.h"
-#include "FlowNode_QuestInfo.h"
 #include "FlowSubsystem.h"
 #include "Net/UnrealNetwork.h"
 
@@ -57,8 +56,7 @@ void UQuestGlobalComponent::AcceptQuest(UFlowAsset_Quest* QuestFlow)
 	// Accept on server
 	if (GetOwnerRole() == ROLE_Authority)
 	{
-		auto NewInstance = GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>()->StartRootFlow(this, QuestFlow, false);
-		if (NewInstance)
+		if (GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>()->StartRootFlow(this, QuestFlow, false))
 		{
 			auto NewItem = FQuestFlowState(QuestFlow, QFS_Ongoing);
 			QuestFlowStateList.QuestStates.Add(NewItem);
@@ -146,7 +144,7 @@ void UQuestGlobalComponent::GetSelectedFinishedQuestFlow(TArray<FFinishedGoalSta
 	}
 }
 
-void UQuestGlobalComponent::NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> QuestGoalClass, UObject* Object1, UObject* Object2)
+void UQuestGlobalComponent::NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> QuestGoalClass, FInstancedStruct Data)
 {
 	for (const auto Flow : GetOngoingQuestInstances())
 	{
@@ -155,7 +153,7 @@ void UQuestGlobalComponent::NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> Q
 		{
 			if (ActiveGoalNode->GetClass()->IsChildOf(QuestGoalClass))
 			{
-				Cast<UFlowNode_QuestCommon>(ActiveGoalNode)->OnNotify(Object1, Object2);
+				Cast<UFlowNode_QuestCommon>(ActiveGoalNode)->OnNotify(Data);
 			}
 		}
 	}
@@ -231,21 +229,6 @@ bool UQuestGlobalComponent::LoadQuestSaveData(FQuestSaveData SaveData)
 	OnRep_GoalInfoList();
 	return true;
 }
-
-//void UQuestGlobalComponent::UpdateGoalsDesc(UFlowAsset* QuestFlowInstance, TArray<FGoalInfo>& ModifyGoals)
-//{
-//	if (QuestFlowInstance)
-//	{
-//		for (auto ActiveGoalNode : QuestFlowInstance->GetActiveNodes())
-//		{
-//			if (auto QuestCommon = Cast<UFlowNode_QuestCommon>(ActiveGoalNode))
-//			{
-//				auto DefaultNode = Cast<UFlowNode_QuestCommon>(QuestFlowInstance->GetTemplateAsset()->GetNode(QuestCommon->GetGuid()));
-//				ModifyGoals.Add(FGoalInfo(DefaultNode, QuestCommon->GetGoalDesc(), QuestCommon->bGoalFinished));
-//			}
-//		}
-//	}
-//}
 
 void UQuestGlobalComponent::OnRep_QuestFlowStateList()
 {

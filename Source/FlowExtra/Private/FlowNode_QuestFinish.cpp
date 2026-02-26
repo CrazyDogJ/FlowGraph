@@ -44,15 +44,16 @@ void UFlowNode_QuestFinish::ExecuteInput(const FName& PinName)
 	
 	if (auto QuestComp = Cast<UQuestGlobalComponent>(GetFlowAsset()->GetOwner()))
 	{
-		auto Found = QuestComp->QuestFlowStateList.QuestStates.FindByPredicate([&](const FQuestFlowState& State)
+		const auto Found = QuestComp->QuestFlowStateList.QuestStates.IndexOfByPredicate([&](const FQuestFlowState& State)
 		{
 			return State.QuestFlowTemplate == GetFlowAsset()->GetTemplateAsset();
 		});
 		
-		if (Found)
+		if (Found >= 0)
 		{
-			Found->QuestFlowState = bSuccessOrFailed ? QFS_Finished : QFS_Failed;
-			Found->FinishNodeGuid = GetGuid();
+			auto& FoundNodeState = QuestComp->QuestFlowStateList.QuestStates[Found];
+			FoundNodeState.QuestFlowState = bSuccessOrFailed ? QFS_Finished : QFS_Failed;
+			FoundNodeState.FinishNodeGuid = GetGuid();
 			
 			// iterate nodes and save it
 			TArray<UFlowNode*> NodesInExecutionOrder;
@@ -63,12 +64,12 @@ void UFlowNode_QuestFinish::ExecuteInput(const FName& PinName)
 				{
 					if (auto Goal = Cast<UFlowNode_QuestCommon>(Node))
 					{
-						Found->Nodes.Add(FFinishedGoalState(Goal->GetGoalDesc(), Goal->CurrentGoalState));
+						FoundNodeState.Nodes.Add(FFinishedGoalState(Goal->GetGoalDesc(), Goal->CurrentGoalState));
 					}
 				}
 			}
 			
-			QuestComp->QuestFlowStateList.MarkItemDirty(*Found);
+			QuestComp->QuestFlowStateList.MarkItemDirty(FoundNodeState);
 			QuestComp->OnRep_QuestFlowStateList();
 		}
 	}

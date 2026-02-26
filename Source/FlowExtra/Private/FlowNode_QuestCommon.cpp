@@ -59,6 +59,22 @@ void UFlowNode_QuestCommon::ExecuteInput(const FName& PinName)
 	}
 }
 
+void UFlowNode_QuestCommon::TriggerOutput(const FName PinName, const bool bFinish,
+	const EFlowPinActivationType ActivationType)
+{
+	// Also mark goal dirty.
+	if (PinName == TEXT("Success"))
+	{
+		MarkThisGoalDirty(EGS_Success);
+	}
+	else if (PinName == TEXT("Completed"))
+	{
+		MarkThisGoalDirty(EGS_Failed);
+	}
+	
+	Super::TriggerOutput(PinName, bFinish, ActivationType);
+}
+
 void UFlowNode_QuestCommon::OnLoad_Implementation()
 {
 	Super::OnLoad_Implementation();

@@ -12,6 +12,7 @@ public class FlowExtra : ModuleRules
                 "Core", 
                 "Engine",
                 "UMG",
+                "DeveloperSettings",
             }
         );
 

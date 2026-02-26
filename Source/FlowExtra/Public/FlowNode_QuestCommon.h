@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Nodes/FlowNode.h"
+#include "InstancedStruct.h"
 #include "FlowNode_QuestCommon.generated.h"
 
 UENUM(BlueprintType)
@@ -45,21 +46,10 @@ public:
 	void MarkThisGoalDirty(TEnumAsByte<EGoalState> GoalState);
 	
 	UFUNCTION(BlueprintImplementableEvent, Category=Quest)
-	void OnNotify(UObject* Object1, UObject* Object2);
-	
-	UFUNCTION(BlueprintImplementableEvent, Category=Quest, DisplayName=OnReceived)
-	void K2_OnEventReceived();
-	
-	UFUNCTION(BlueprintImplementableEvent, Category=Quest, DisplayName=OnCompleted)
-    void K2_OnEventCompleted();
-
-	UFUNCTION(BlueprintImplementableEvent, Category=Quest, DisplayName=HasAnyGoalActors)
-	void K2_HasAnyGoalActors();
-
-	UFUNCTION(BlueprintImplementableEvent, Category=Quest, DisplayName=HasNoGoalActors)
-	void K2_HasNoGoalActors();
+	void OnNotify(FInstancedStruct Data);
 
 	virtual void ExecuteInput(const FName& PinName) override;
+	virtual void TriggerOutput(const FName PinName, const bool bFinish = false, const EFlowPinActivationType ActivationType = EFlowPinActivationType::Default) override;
 	virtual void OnLoad_Implementation() override;
 #if WITH_EDITOR
 public:

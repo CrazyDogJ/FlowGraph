@@ -15,16 +15,16 @@ struct FDialogueAnimation
 	GENERATED_BODY()
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	UAnimMontage* Montage;
+	UAnimMontage* Montage = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TMap<FName, float> Morphs;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	bool bStopMontageOnEnd;
+	bool bStopMontageOnEnd = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	bool bStopPreviousMontageOnStart;
+	bool bStopPreviousMontageOnStart = false;
 };
 
 /**

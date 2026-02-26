@@ -59,9 +59,6 @@ public:
 #pragma endregion 
 
 #pragma region Properties
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TSubclassOf<UDialogueWidget> WidgetClass;
-
 	UPROPERTY(BlueprintReadOnly)
 	UDialogueWidget* DialogueWidget;
 	

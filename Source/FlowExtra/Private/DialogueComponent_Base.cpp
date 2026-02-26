@@ -9,6 +9,7 @@
 #include "FlowAsset.h"
 #include "FlowAsset_Dialogue.h"
 #include "FlowExtraGameplayTags.h"
+#include "FlowExtraSettings.h"
 #include "FlowSubsystem.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
@@ -39,16 +40,20 @@ void UDialogueComponent_Base::OnDialogueNodeStartEvent(UFlowNode_Dialogue* Dialo
 				CurrentCamera->Destroy();
 				CurrentCamera = nullptr;
 			}
-			
-			if (DialogueNode->DialogueCameraCalculation->bSpawnNewCamera)
+
+			const auto LocalCameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
+			if (LocalCameraManager->Implements<UDialogueCameraInterface>())
 			{
-				CurrentCamera = GetWorld()->SpawnActor<ACustomSpringCamera>(ACustomSpringCamera::StaticClass());
-				CurrentCamera->DialogueCameraCalculation = DialogueNode->DialogueCameraCalculation;
-				IDialogueCameraInterface::Execute_SetNewViewTarget(UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0), CurrentCamera);
-			}
-			else
-			{
-				IDialogueCameraInterface::Execute_SetNewViewTarget(UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0), DialogueNode->DialogueCameraCalculation->GetViewActor());
+				if (DialogueNode->DialogueCameraCalculation->bSpawnNewCamera)
+				{
+					CurrentCamera = GetWorld()->SpawnActor<ACustomSpringCamera>(ACustomSpringCamera::StaticClass());
+					CurrentCamera->DialogueCameraCalculation = DialogueNode->DialogueCameraCalculation;
+					IDialogueCameraInterface::Execute_SetNewViewTarget(LocalCameraManager, CurrentCamera);
+				}
+				else
+				{
+					IDialogueCameraInterface::Execute_SetNewViewTarget(LocalCameraManager, DialogueNode->DialogueCameraCalculation->GetViewActor());
+				}
 			}
 		}
 	}
@@ -104,12 +109,12 @@ void UDialogueComponent_Base::OnDialogueFlowStartEvent(UFlowAsset_Dialogue* Dial
 	}
 	
 	// Try to create dialogue and check dialogue widget valid.
-	GetOrCreateDialogueWidget(DialogueFlowOwner->Get());
-	if (DialogueWidget && !DialogueWidget->IsInViewport())
+	const auto LocalDialogueWidget = GetOrCreateDialogueWidget(DialogueFlowOwner->Get());
+	if (LocalDialogueWidget && !LocalDialogueWidget->IsInViewport())
 	{
-		DialogueWidget->AddToViewport();
-		DialogueWidget->GetOwningPlayer()->SetShowMouseCursor(true);
-		UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(DialogueWidget->GetOwningPlayer(), DialogueWidget, EMouseLockMode::DoNotLock, true);
+		LocalDialogueWidget->AddToViewport();
+		LocalDialogueWidget->GetOwningPlayer()->SetShowMouseCursor(true);
+		UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(LocalDialogueWidget->GetOwningPlayer(), LocalDialogueWidget, EMouseLockMode::DoNotLock, true);
 	}
 
 	bInDialogue = true;
@@ -126,21 +131,26 @@ void UDialogueComponent_Base::OnDialogueFlowEndEvent(UFlowAsset_Dialogue* Dialog
 	{
 		if (Pawn->IsLocallyControlled())
 		{
-			if (DialogueWidget->IsInViewport())
+			const auto DialogueFlowOwner = CurrentDialogueInstance->IdentityActors.Find(FlowDialogueTags::FlowDialogueOwner);
+			const auto LocalDialogueWidget = GetOrCreateDialogueWidget(DialogueFlowOwner->Get());
+			
+			if (LocalDialogueWidget && LocalDialogueWidget->IsInViewport())
 			{
-				DialogueWidget->GetOwningPlayer()->SetShowMouseCursor(false);
-				UWidgetBlueprintLibrary::SetInputMode_GameOnly(DialogueWidget->GetOwningPlayer(), true);
-				DialogueWidget->RemoveFromParent();
+				LocalDialogueWidget->GetOwningPlayer()->SetShowMouseCursor(false);
+				UWidgetBlueprintLibrary::SetInputMode_GameOnly(LocalDialogueWidget->GetOwningPlayer(), true);
+				LocalDialogueWidget->RemoveFromParent();
 			}
 			
 			if (CurrentCamera)
 			{
 				CurrentCamera->Destroy();
 				CurrentCamera = nullptr;
-				if (IDialogueCameraInterface* CameraMangerInterface = Cast<IDialogueCameraInterface>(UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0)))
-				{
-					CameraMangerInterface->Execute_SetNewViewTarget(UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0), nullptr);
-				}
+			}
+
+			const auto LocalCameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
+			if (LocalCameraManager->Implements<UDialogueCameraInterface>())
+			{
+				IDialogueCameraInterface::Execute_SetNewViewTarget(LocalCameraManager, nullptr);
 			}
 		}
 	}
@@ -216,6 +226,7 @@ UDialogueWidget* UDialogueComponent_Base::GetOrCreateDialogueWidget(const AActor
 	const auto Pawn = Cast<APawn>(GetOwner());
 	if (Pawn && Pawn->IsLocalPlayerControllerViewingAPawn())
 	{
+		const auto WidgetClass = GetDefault<UFlowExtraSettings>()->DialogueWidgetClass;
 		if (const auto ResultDialogueWidget = CreateWidget<UDialogueWidget>(Pawn->GetLocalViewingPlayerController(), WidgetClass))
 		{
 			if (FlowOwner)

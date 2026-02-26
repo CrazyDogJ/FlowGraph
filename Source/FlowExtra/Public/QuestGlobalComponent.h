@@ -8,6 +8,7 @@
 #include "FlowAsset_Quest.h"
 #include "Components/ActorComponent.h"
 #include "Net/Serialization/FastArraySerializer.h"
+#include "InstancedStruct.h"
 #include "QuestGlobalComponent.generated.h"
 
 UENUM(BlueprintType)
@@ -28,7 +29,7 @@ struct FFinishedGoalState
 	FText GoalDesc;
 
 	UPROPERTY(BlueprintReadOnly)
-	TEnumAsByte<EGoalState> GoalState;
+	TEnumAsByte<EGoalState> GoalState = EGS_Ongoing;
 };
 
 USTRUCT(BlueprintType)
@@ -37,7 +38,7 @@ struct FFinishedQuestState
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, SaveGame)
-	TEnumAsByte<EQuestFlowState> State;
+	TEnumAsByte<EQuestFlowState> State = EQuestFlowState::QFS_Ongoing;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, SaveGame)
 	FGuid FinishNodeGuids;
@@ -210,7 +211,7 @@ public:
 	* Used to notify goal nodes in current ongoing quest flow instances. 
 	*/
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Quest")
-	void NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> QuestGoalClass, UObject* Object1, UObject* Object2);
+	void NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> QuestGoalClass, FInstancedStruct Data);
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Quest")
 	FQuestSaveData GetQuestSaveData();
@@ -241,5 +242,8 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_GoalInfoList)
 	FGoalInfoList GoalInfoList;
-#pragma endregion 
+#pragma endregion
+	
+protected:
+	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
 };
