@@ -26,6 +26,7 @@ void UFlowNode_ToggleDataLayer::ExecuteInput(const FName& PinName)
 	TriggerFirstOutput(true);
 }
 
+#if WITH_EDITOR
 FString UFlowNode_ToggleDataLayer::GetNodeCategory() const
 {
 	return "Quest";
@@ -47,3 +48,4 @@ FString UFlowNode_ToggleDataLayer::GetNodeDescription() const
 	Description.RemoveFromEnd(LINE_TERMINATOR);
 	return Description;
 }
+#endif

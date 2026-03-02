@@ -159,6 +159,23 @@ void UQuestGlobalComponent::NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> Q
 	}
 }
 
+bool UQuestGlobalComponent::GetGoalState(FGuid DefaultNodeId, TEnumAsByte<EGoalState>& GoalState)
+{
+	const auto Found = GoalInfoList.GoalInfos.FindByPredicate([DefaultNodeId](const FGoalInfo& Info)
+	{
+		return Info.QuestCommonNodeDefault->GetGuid() == DefaultNodeId;
+	});
+
+	if (Found)
+	{
+		GoalState = Found->GoalState;
+		return true;
+	}
+
+	GoalState = EGS_Failed;
+	return false;
+}
+
 FQuestSaveData UQuestGlobalComponent::GetQuestSaveData()
 {
 	FQuestSaveData Result;

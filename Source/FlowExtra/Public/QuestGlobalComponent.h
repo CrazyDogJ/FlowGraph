@@ -213,6 +213,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Quest")
 	void NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> QuestGoalClass, FInstancedStruct Data);
 
+	UFUNCTION(BlueprintCallable, Category="Quest")
+	bool GetGoalState(FGuid DefaultNodeId, TEnumAsByte<EGoalState>& GoalState);
+	
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Quest")
 	FQuestSaveData GetQuestSaveData();
 

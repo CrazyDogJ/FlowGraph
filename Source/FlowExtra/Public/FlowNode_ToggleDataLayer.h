@@ -28,9 +28,10 @@ class FLOWEXTRA_API UFlowNode_ToggleDataLayer : public UFlowNode
 	GENERATED_BODY()
 
 	virtual void ExecuteInput(const FName& PinName) override;
+#if WITH_EDITOR
 	virtual FString GetNodeCategory() const override;
 	virtual FString GetNodeDescription() const override;
-
+#endif
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	TArray<FFlowDataLayerState> DataLayerAssets;

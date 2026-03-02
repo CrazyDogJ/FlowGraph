@@ -25,5 +25,7 @@ public:
 	void OnDialogueNodeEnd(UFlowNode_Dialogue* DialogueNode);
 
 	virtual class UWorld* GetWorld() const override;
+#if WITH_EDITOR
 	virtual bool ImplementsGetWorld() const override {return true;};
+#endif
 };
