@@ -20,7 +20,7 @@ public:
 	explicit UDialogueWidget(const FObjectInitializer& Initializer);
 	
 	/** Dialogue asset owner component. */
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere)
 	UDialogueComponent_Base* DialogueComponent = nullptr;
 
 	// Time for each character to pop out.

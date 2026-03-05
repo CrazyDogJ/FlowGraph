@@ -60,9 +60,6 @@ public:
 
 #pragma region Properties
 	UPROPERTY(BlueprintReadOnly)
-	UDialogueWidget* DialogueWidget;
-	
-	UPROPERTY(BlueprintReadOnly)
 	UPrimitiveComponent* ActorPrimitiveComponent;
 
 	UPROPERTY(BlueprintReadOnly)
@@ -82,8 +79,6 @@ public:
 #pragma endregion
 
 #pragma region Functions
-	UDialogueWidget* GetOrCreateDialogueWidget(const AActor* FlowOwner);
-	
 	UFUNCTION(BlueprintCallable, NetMulticast, Reliable)
 	void CharacterPlayMontage(UAnimMontage* AnimMontage, EDialogMontageMode Mode);
 
@@ -100,6 +95,12 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable)
 	void StartDialogue(UFlowAsset_Dialogue* FlowAsset, AActor* InteractedCharacter);
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void ShowDialogueWidget(TSubclassOf<UDialogueWidget> DialogueWidgetClass, UDialogueComponent_Base* DialogueComponent);
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void HideDialogueWidget();
 	
 	bool FindRole(const FGameplayTag& InTag) const;
 #pragma endregion

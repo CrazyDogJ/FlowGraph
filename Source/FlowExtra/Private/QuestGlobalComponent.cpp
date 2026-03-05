@@ -193,7 +193,7 @@ FQuestSaveData UQuestGlobalComponent::GetQuestSaveData()
 			Result.OngoingQuestFlowAssetSaveData.Add(QuestItr->GetTemplateAsset(), QuestItr->SaveQuestInstance());
 		}
 	}
-	Result.bValid = Result.OngoingQuestFlowAssetSaveData.Num() > 0;
+	Result.bValid = Result.OngoingQuestFlowAssetSaveData.Num() > 0 || Result.FinishedQuestFlowAssetSaveData.Num() > 0;
 	return Result;
 }
 
@@ -243,7 +243,6 @@ bool UQuestGlobalComponent::LoadQuestSaveData(FQuestSaveData SaveData)
 		QuestFlowStateList.MarkItemDirty(NewState);
 	}
 	OnRep_QuestFlowStateList();
-	OnRep_GoalInfoList();
 	return true;
 }
 
