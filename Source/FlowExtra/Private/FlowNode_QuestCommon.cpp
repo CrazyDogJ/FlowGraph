@@ -98,6 +98,6 @@ FString UFlowNode_QuestCommon::GetNodeDescription() const
 	{
 		MapPinInfo = "MapPinTag : " + MapPinActorIdentifyTags.ToString();
 	}
-	return Super::GetNodeDescription() + LINE_TERMINATOR + MapPinInfo + LINE_TERMINATOR + K2_GetNodeDescription();
+	return Super::GetNodeDescription() + LINE_TERMINATOR + MapPinInfo;
 }
 #endif

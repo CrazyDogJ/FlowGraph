@@ -235,6 +235,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FRecordFlowChangedEvent RecordedQuestFlowsChanged;
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void OnQuestFinished(UFlowAsset_Quest* QuestTemplate, EQuestFlowState FinishState);
 	
 	// Local selected template.
 	UPROPERTY(BlueprintReadOnly)

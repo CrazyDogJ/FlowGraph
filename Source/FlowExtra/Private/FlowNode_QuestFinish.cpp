@@ -72,6 +72,10 @@ void UFlowNode_QuestFinish::ExecuteInput(const FName& PinName)
 			QuestComp->QuestFlowStateList.MarkItemDirty(FoundNodeState);
 			QuestComp->OnRep_QuestFlowStateList();
 		}
+		
+		QuestComp->OnQuestFinished(
+			Cast<UFlowAsset_Quest>(GetFlowAsset()->GetTemplateAsset()),
+			bSuccessOrFailed ? QFS_Finished : QFS_Failed);
 	}
 
 	Finish();
