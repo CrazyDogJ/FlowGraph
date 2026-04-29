@@ -35,7 +35,7 @@ void UFlowNode_QuestFinish::ExecuteInput(const FName& PinName)
 				{
 					if (Delegate->ListeningQuest == QuestFlow->GetTemplateAsset())
 					{
-						Delegate->OnQuestEnd(QuestFlow, bSuccessOrFailed ? QFS_Finished : QFS_Failed);
+						Delegate->OnQuestEnd(bSuccessOrFailed ? QFS_Finished : QFS_Failed);
 					}
 				}
 			}
@@ -64,7 +64,7 @@ void UFlowNode_QuestFinish::ExecuteInput(const FName& PinName)
 				{
 					if (auto Goal = Cast<UFlowNode_QuestCommon>(Node))
 					{
-						FoundNodeState.Nodes.Add(FFinishedGoalState(Goal->GetGoalDesc(), Goal->CurrentGoalState));
+						FoundNodeState.Nodes.Add(FFinishedGoalState(Goal->NodeGuid, Goal->GetGoalDesc(), Goal->CurrentGoalState));
 					}
 				}
 			}

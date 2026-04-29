@@ -30,11 +30,11 @@ public:
 	TArray<FGuid> ListeningQuestGoals;
 
 	UFUNCTION(BlueprintImplementableEvent)
-	void OnQuestStart(UFlowAsset_Quest* QuestInstance);
+	void OnQuestStart();
 
 	UFUNCTION(BlueprintImplementableEvent)
-	void OnQuestEnd(UFlowAsset_Quest* QuestInstance, EQuestFlowState QuestFlowState);
+	void OnQuestEnd(EQuestFlowState QuestFlowState);
 	
 	UFUNCTION(BlueprintImplementableEvent)
-	void OnQuestNodeStateChanged(UFlowNode_QuestCommon* NodeInstance, EGoalState GoalState);
+	void OnQuestNodeStateChanged(FGuid NodeGuid, EGoalState GoalState);
 };

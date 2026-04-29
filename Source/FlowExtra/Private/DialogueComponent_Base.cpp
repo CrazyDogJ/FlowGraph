@@ -10,6 +10,7 @@
 #include "FlowExtraGameplayTags.h"
 #include "FlowExtraSettings.h"
 #include "FlowSubsystem.h"
+#include "Camera/CameraActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
@@ -226,6 +227,20 @@ void UDialogueComponent_Base::StartDialogue(UFlowAsset_Dialogue* FlowAsset, AAct
 	}
 }
 
+AActor* UDialogueComponent_Base::RequestCameraActor_Implementation() const
+{
+	if (ActorPrimitiveComponent)
+	{
+		const auto NewActor = GetWorld()->SpawnActor<ACameraActor>(ACameraActor::StaticClass());
+		NewActor->GetCameraComponent()->bConstrainAspectRatio = false;
+		NewActor->AttachToComponent(ActorPrimitiveComponent, FAttachmentTransformRules::SnapToTargetIncludingScale, ComponentSocket);
+		NewActor->SetActorRelativeTransform(RelativeTransform);
+		return NewActor;
+	}
+
+	return nullptr;
+}
+
 bool UDialogueComponent_Base::FindRole(const FGameplayTag& InTag) const
 {
 	if (const auto Found = CurrentDialogueInstance->IdentityActors.Find(InTag))
@@ -240,6 +255,30 @@ bool UDialogueComponent_Base::FindRole(const FGameplayTag& InTag) const
 void UDialogueComponent_Base::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (const auto OwnerActor = GetOwner())
+	{
+		OwnerActor->ForEachComponent<UPrimitiveComponent>(false, [this](UPrimitiveComponent* Comp)
+		{
+			// Try to strip suffix used to identify template component instances
+			FString StrippedName = Comp->GetName();
+			if (StrippedName.RemoveFromEnd(UActorComponent::ComponentTemplateNameSuffix))
+			{
+				if (StrippedName == ComponentName.ToString())
+				{
+					ActorPrimitiveComponent = Comp;
+					return false;
+				}
+			}
+			else if (Comp->GetFName() == ComponentName)
+			{
+				ActorPrimitiveComponent = Comp;
+				return false;
+			}
+	
+			return true;
+		});
+	}
 	
 	OnDialogueNodeStart.AddDynamic(this, &UDialogueComponent_Base::OnDialogueNodeStartEvent);
 	OnDialogueNodeEnd.AddDynamic(this, &UDialogueComponent_Base::OnDialogueNodeEndEvent);

@@ -32,7 +32,7 @@ void UFlowNode_QuestCommon::MarkThisGoalDirty(TEnumAsByte<EGoalState> GoalState)
 				{
 					if (Delegate->ListeningQuest == QuestFlow->GetTemplateAsset() && Delegate->ListeningQuestGoals.Find(NodeGuid) >= 0)
 					{
-						Delegate->OnQuestNodeStateChanged(this, GoalState);
+						Delegate->OnQuestNodeStateChanged(NodeGuid, GoalState);
 					}
 				}
 			}

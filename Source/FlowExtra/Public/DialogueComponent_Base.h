@@ -62,7 +62,10 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 	UPrimitiveComponent* ActorPrimitiveComponent;
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, EditAnywhere)
+	FName ComponentName;
+	
+	UPROPERTY(BlueprintReadOnly, EditAnywhere)
 	FName ComponentSocket;
 
 	UPROPERTY(BlueprintReadOnly, Replicated)
@@ -101,6 +104,12 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent)
 	void HideDialogueWidget();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FTransform RelativeTransform;
+
+	UFUNCTION(BlueprintNativeEvent)
+	AActor* RequestCameraActor() const;
 	
 	bool FindRole(const FGameplayTag& InTag) const;
 #pragma endregion

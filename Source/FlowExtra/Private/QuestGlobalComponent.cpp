@@ -3,7 +3,9 @@
 
 #include "QuestGlobalComponent.h"
 
+#include "FlowComponent_Quest.h"
 #include "FlowExtraFunctionLibrary.h"
+#include "FlowExtraGameplayTags.h"
 #include "FlowNode_QuestFinish.h"
 #include "FlowSubsystem.h"
 #include "Net/UnrealNetwork.h"
@@ -56,7 +58,8 @@ void UQuestGlobalComponent::AcceptQuest(UFlowAsset_Quest* QuestFlow)
 	// Accept on server
 	if (GetOwnerRole() == ROLE_Authority)
 	{
-		if (GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>()->StartRootFlow(this, QuestFlow, false))
+		const auto Subsystem = GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>();
+		if (Subsystem->StartRootFlow(this, QuestFlow, false))
 		{
 			auto NewItem = FQuestFlowState(QuestFlow, QFS_Ongoing);
 			QuestFlowStateList.QuestStates.Add(NewItem);
@@ -161,6 +164,7 @@ void UQuestGlobalComponent::NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> Q
 
 bool UQuestGlobalComponent::GetGoalState(FGuid DefaultNodeId, TEnumAsByte<EGoalState>& GoalState)
 {
+	// Find in ongoing quest flow.
 	const auto Found = GoalInfoList.GoalInfos.FindByPredicate([DefaultNodeId](const FGoalInfo& Info)
 	{
 		return Info.QuestCommonNodeDefault->GetGuid() == DefaultNodeId;
@@ -172,6 +176,21 @@ bool UQuestGlobalComponent::GetGoalState(FGuid DefaultNodeId, TEnumAsByte<EGoalS
 		return true;
 	}
 
+	// Find in finished quest flow.
+	for (const auto QuestState : QuestFlowStateList.QuestStates)
+	{
+		const auto FoundGoalState = QuestState.Nodes.FindByPredicate([DefaultNodeId](const FFinishedGoalState& FinishedGoalState)
+		{
+			return FinishedGoalState.GoalNodeGuid == DefaultNodeId;
+		});
+		
+		if (FoundGoalState)
+		{
+			GoalState = FoundGoalState->GoalState;
+			return true;
+		}
+	}
+	
 	GoalState = EGS_Failed;
 	return false;
 }
@@ -243,6 +262,18 @@ bool UQuestGlobalComponent::LoadQuestSaveData(FQuestSaveData SaveData)
 		QuestFlowStateList.MarkItemDirty(NewState);
 	}
 	OnRep_QuestFlowStateList();
+
+	// When loaded, we call events for delegates.
+	const auto Subsystem = GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>();
+	auto Comps = Subsystem->GetFlowComponentsByTag(FlowQuestTags::FlowQuestComp, UFlowComponent_Quest::StaticClass(), false);
+	for (auto Comp : Comps)
+	{
+		if (auto Comp_Quest = Cast<UFlowComponent_Quest>(Comp))
+		{
+			Comp_Quest->CallEvents();
+		}
+	}
+	
 	return true;
 }
 

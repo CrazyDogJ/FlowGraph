@@ -17,6 +17,8 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
+
+	void CallEvents();
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Instanced)
 	TArray<UQuestDelegate*> QuestDelegates;

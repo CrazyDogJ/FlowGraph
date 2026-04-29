@@ -12,30 +12,36 @@ UFlowComponent_Quest::UFlowComponent_Quest(const FObjectInitializer& ObjectIniti
 
 void UFlowComponent_Quest::BeginPlay()
 {
+	Super::BeginPlay();
+
+	CallEvents();
+}
+
+void UFlowComponent_Quest::CallEvents()
+{
+	auto Comp = UGameplayStatics::GetGameState(GetWorld())->GetComponentByClass<UQuestGlobalComponent>();
+	
 	for (auto QuestDelegate : QuestDelegates)
 	{
 		QuestDelegate->OwnerQuestFlowComp = this;
-	}
-
-	// Call Delegates
-	auto Comp = UGameplayStatics::GetGameState(GetWorld())->GetComponentByClass<UQuestGlobalComponent>();
-	auto QuestInstances = GetFlowSubsystem()->GetRootInstancesByOwner(Comp);
-	for (auto Instance : QuestInstances)
-	{
-		if (auto FlowAsset_Quest = Cast<UFlowAsset_Quest>(Instance->GetTemplateAsset()))
+		
+		const auto FlowState = Comp->GetQuestFlowState(QuestDelegate->ListeningQuest);
+		if (FlowState == QFS_Ongoing)
 		{
-			if (auto FoundDelegate = FindDelegateByFlow(FlowAsset_Quest))
-			{
-				FoundDelegate->OnQuestStart(FlowAsset_Quest);
-				if (auto FoundNode = FindQuestNode(FlowAsset_Quest, FoundDelegate))
-				{
-					FoundDelegate->OnQuestNodeStateChanged(FoundNode, EGS_Ongoing);
-				}
-			}
+			QuestDelegate->OnQuestStart();
+		}
+		else if (FlowState == QFS_Finished || FlowState == QFS_Failed)
+		{
+			QuestDelegate->OnQuestEnd(FlowState);
+		}
+		
+		for (const auto Node : QuestDelegate->ListeningQuestGoals)
+		{
+			TEnumAsByte<EGoalState> GoalState;
+			Comp->GetGoalState(Node, GoalState);
+			QuestDelegate->OnQuestNodeStateChanged(Node, GoalState);
 		}
 	}
-	
-	Super::BeginPlay();
 }
 
 UQuestDelegate* UFlowComponent_Quest::FindDelegateByFlow(UFlowAsset_Quest* Template)

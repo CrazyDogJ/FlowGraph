@@ -26,6 +26,9 @@ struct FFinishedGoalState
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadOnly)
+	FGuid GoalNodeGuid;
+	
+	UPROPERTY(BlueprintReadOnly)
 	FText GoalDesc;
 
 	UPROPERTY(BlueprintReadOnly)

@@ -78,7 +78,7 @@ void UFlowAsset_Quest::StartFlow(IFlowDataPinValueSupplierInterface* DataPinValu
 			{
 				if (Delegate->ListeningQuest == GetTemplateAsset())
 				{
-					Delegate->OnQuestStart(this);
+					Delegate->OnQuestStart();
 				}
 			}
 		}
