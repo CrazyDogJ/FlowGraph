@@ -60,6 +60,9 @@ struct FQuestSaveData
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, SaveGame)
 	TMap<UFlowAsset*, FFlowAssetSaveData> OngoingQuestFlowAssetSaveData;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, SaveGame)
+	FGameplayTagContainer TagContainer;
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, SaveGame)
 	bool bValid = false;
@@ -216,6 +219,17 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Quest")
 	void NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> QuestGoalClass, FInstancedStruct Data);
 
+	/**
+	 * Add a cached flag for future quest accept
+	 * (Like you have a certain quest object that has been finished,
+	 * you should add a tag flag for unaccepted quest to know.)
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Quest")
+	void NotifyPersistentTagFlag(FGameplayTag Tag, bool bAddOrNot = true);
+
+	UFUNCTION(BlueprintPure, BlueprintAuthorityOnly, Category="Quest")
+	bool HasPersistentTagFlag(FGameplayTag Tag) const;
+	
 	UFUNCTION(BlueprintCallable, Category="Quest")
 	bool GetGoalState(FGuid DefaultNodeId, TEnumAsByte<EGoalState>& GoalState);
 	
@@ -251,6 +265,10 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_GoalInfoList)
 	FGoalInfoList GoalInfoList;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+	FGameplayTagContainer PersistentTagFlag;
+	
 #pragma endregion
 	
 protected:

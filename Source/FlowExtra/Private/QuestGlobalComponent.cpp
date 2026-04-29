@@ -162,6 +162,23 @@ void UQuestGlobalComponent::NotifyGoalNodes(TSubclassOf<UFlowNode_QuestCommon> Q
 	}
 }
 
+void UQuestGlobalComponent::NotifyPersistentTagFlag(FGameplayTag Tag, bool bAddOrNot)
+{
+	if (bAddOrNot)
+	{
+		PersistentTagFlag.AddTag(Tag);
+	}
+	else
+	{
+		PersistentTagFlag.RemoveTag(Tag);
+	}
+}
+
+bool UQuestGlobalComponent::HasPersistentTagFlag(FGameplayTag Tag) const
+{
+	return PersistentTagFlag.HasTag(Tag);
+}
+
 bool UQuestGlobalComponent::GetGoalState(FGuid DefaultNodeId, TEnumAsByte<EGoalState>& GoalState)
 {
 	// Find in ongoing quest flow.
@@ -212,7 +229,8 @@ FQuestSaveData UQuestGlobalComponent::GetQuestSaveData()
 			Result.OngoingQuestFlowAssetSaveData.Add(QuestItr->GetTemplateAsset(), QuestItr->SaveQuestInstance());
 		}
 	}
-	Result.bValid = Result.OngoingQuestFlowAssetSaveData.Num() > 0 || Result.FinishedQuestFlowAssetSaveData.Num() > 0;
+	Result.TagContainer = PersistentTagFlag;
+	Result.bValid = Result.OngoingQuestFlowAssetSaveData.Num() > 0 || Result.FinishedQuestFlowAssetSaveData.Num() > 0 || !Result.TagContainer.IsEmpty();
 	return Result;
 }
 
@@ -222,6 +240,8 @@ bool UQuestGlobalComponent::LoadQuestSaveData(FQuestSaveData SaveData)
 	{
 		return false;
 	}
+
+	PersistentTagFlag = SaveData.TagContainer;
 	
 	for (auto Itr : SaveData.OngoingQuestFlowAssetSaveData)
 	{
