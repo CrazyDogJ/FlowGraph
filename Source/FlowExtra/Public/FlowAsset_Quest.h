@@ -21,7 +21,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FText QuestName;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Multiline = "true"))
 	FText QuestDescription;
 
 	UFUNCTION(BlueprintCallable, Category = "SaveGame")

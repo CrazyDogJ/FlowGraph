@@ -22,9 +22,9 @@ class FLOWEXTRA_API UFlowAsset_Dialogue : public UFlowAsset
 {
 	GENERATED_BODY()
 
+public:
 	virtual void FinishFlow(const EFlowFinishPolicy InFinishPolicy, const bool bRemoveInstance) override;
 	
-public:
 	/**
 	 * Tags to identify near dialogue objects;
 	 */

@@ -10,6 +10,56 @@
 #include "FlowSubsystem.h"
 #include "Net/UnrealNetwork.h"
 
+void FQuestFlowStateList::PostReplicatedAdd(const TArrayView<int32>& AddedIndices, int32 FinalSize)
+{
+	if (OuterQuestComponent)
+	{
+		TArray<int32> Result;
+		Result.Append(AddedIndices);
+		for (const auto Itr : AddedIndices)
+		{
+			QuestStatesMapping.Add(QuestStates[Itr].QuestFlowTemplate, Itr);
+		}
+		
+		OuterQuestComponent->QuestStateAddedEvent.Broadcast(Result);
+	}
+}
+
+void FQuestFlowStateList::PostReplicatedChange(const TArrayView<int32>& ChangedIndices, int32 FinalSize)
+{
+	if (OuterQuestComponent)
+	{
+		TArray<int32> Result;
+		Result.Append(ChangedIndices);
+		OuterQuestComponent->QuestStateChangedEvent.Broadcast(Result);
+	}
+}
+
+void FGoalInfoList::PostReplicatedAdd(const TArrayView<int32>& AddedIndices, int32 FinalSize)
+{
+	if (OuterQuestComponent)
+    {
+    	TArray<int32> Result;
+    	Result.Append(AddedIndices);
+		for (const auto Itr : AddedIndices)
+		{
+			GoalInfosMapping.Add(GoalInfos[Itr].QuestCommonNodeDefault, Itr);
+		}
+		
+    	OuterQuestComponent->GoalInfoAddedEvent.Broadcast(Result);
+    }
+}
+
+void FGoalInfoList::PostReplicatedChange(const TArrayView<int32>& ChangedIndices, int32 FinalSize)
+{
+	if (OuterQuestComponent)
+	{
+		TArray<int32> Result;
+		Result.Append(ChangedIndices);
+		OuterQuestComponent->GoalInfoChangedEvent.Broadcast(Result);
+	}
+}
+
 UQuestGlobalComponent::UQuestGlobalComponent()
 {
 	SetIsReplicatedByDefault(true);
@@ -22,30 +72,43 @@ void UQuestGlobalComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	
 	DOREPLIFETIME(UQuestGlobalComponent, QuestFlowStateList)
 	DOREPLIFETIME(UQuestGlobalComponent, GoalInfoList)
+	DOREPLIFETIME(UQuestGlobalComponent, PersistentTagFlag)
+}
+
+void UQuestGlobalComponent::PostLoad()
+{
+	Super::PostLoad();
+
+	QuestFlowStateList.OuterQuestComponent = this;
+	GoalInfoList.OuterQuestComponent = this;
 }
 
 void UQuestGlobalComponent::MarkGoalDirty(UFlowNode_QuestCommon* QuestCommonNodePtr, TEnumAsByte<EGoalState> GoalState)
 {
-	auto NodeTemplate = Cast<UFlowNode_QuestCommon>(
+	// Valid check
+	if (!QuestCommonNodePtr)
+	{
+		return;
+	}
+
+	const auto NodeTemplate = Cast<UFlowNode_QuestCommon>(
 		QuestCommonNodePtr->GetFlowAsset()->GetTemplateAsset()->GetNode(QuestCommonNodePtr->GetGuid()));
-	auto Ptr = GoalInfoList.GoalInfos.IndexOfByPredicate([&](const FGoalInfo& GoalInfo)
+
+	if (auto Ptr = GoalInfoList.GoalInfosMapping.Find(NodeTemplate))
 	{
-		return GoalInfo.QuestCommonNodeDefault == NodeTemplate;
-	});
-	
-	if (Ptr >= 0)
-	{
-		GoalInfoList.GoalInfos[Ptr].GoalDesc = QuestCommonNodePtr->GetGoalDesc();
-		GoalInfoList.GoalInfos[Ptr].GoalState = GoalState;
-		GoalInfoList.MarkItemDirty(GoalInfoList.GoalInfos[Ptr]);
+		GoalInfoList.GoalInfos[*Ptr].GoalReplicatedData = QuestCommonNodePtr->GetGoalData();
+		GoalInfoList.GoalInfos[*Ptr].GoalState = GoalState;
+		GoalInfoList.MarkItemDirty(GoalInfoList.GoalInfos[*Ptr]);
+		GoalInfoChangedEvent.Broadcast({*Ptr});
 	}
 	else
 	{
-		auto NewGoalInfo = FGoalInfo(NodeTemplate, QuestCommonNodePtr->GetGoalDesc(), GoalState);
-		GoalInfoList.GoalInfos.Add(NewGoalInfo);
+		auto NewGoalInfo = FGoalInfo(NodeTemplate, QuestCommonNodePtr->GetGoalData(), GoalState);
+		const auto Index = GoalInfoList.GoalInfos.Add(NewGoalInfo);
+		GoalInfoList.GoalInfosMapping.Add(NodeTemplate, Index);
 		GoalInfoList.MarkItemDirty(NewGoalInfo);
+		GoalInfoAddedEvent.Broadcast({Index});
 	}
-	OnRep_GoalInfoList();
 }
 
 void UQuestGlobalComponent::AcceptQuest(UFlowAsset_Quest* QuestFlow)
@@ -62,9 +125,11 @@ void UQuestGlobalComponent::AcceptQuest(UFlowAsset_Quest* QuestFlow)
 		if (Subsystem->StartRootFlow(this, QuestFlow, false))
 		{
 			auto NewItem = FQuestFlowState(QuestFlow, QFS_Ongoing);
-			QuestFlowStateList.QuestStates.Add(NewItem);
+			const auto Index = QuestFlowStateList.QuestStates.Add(NewItem);
 			QuestFlowStateList.MarkItemDirty(NewItem);
-			OnRep_QuestFlowStateList();
+			QuestFlowStateList.QuestStatesMapping.Add(QuestFlow, Index);
+			QuestStateAddedEvent.Broadcast({Index});
+			// OnRep_QuestFlowStateList();
 		}
 	}
 }
@@ -79,21 +144,16 @@ TArray<UFlowAsset*> UQuestGlobalComponent::GetOngoingQuestInstances()
 	return TArray<UFlowAsset*>();
 }
 
-EQuestFlowState UQuestGlobalComponent::GetQuestFlowState(const UFlowAsset* FlowTemplate)
+EQuestFlowState UQuestGlobalComponent::GetQuestFlowState(const UFlowAsset* FlowTemplate) const
 {
 	if (!FlowTemplate)
 	{
 		return QFS_Invalid;
 	}
-	
-	auto Item = QuestFlowStateList.QuestStates.FindByPredicate([&](const FQuestFlowState& Other)
-	{
-		return Other.QuestFlowTemplate == FlowTemplate;
-	});
 
-	if (Item)
+	if (const auto Found = QuestFlowStateList.QuestStatesMapping.Find(FlowTemplate))
 	{
-		return Item->QuestFlowState;
+		return QuestFlowStateList.QuestStates[*Found].QuestFlowState;
 	}
 	
 	return QFS_Invalid;
@@ -179,7 +239,7 @@ bool UQuestGlobalComponent::HasPersistentTagFlag(FGameplayTag Tag) const
 	return PersistentTagFlag.HasTag(Tag);
 }
 
-bool UQuestGlobalComponent::GetGoalState(FGuid DefaultNodeId, TEnumAsByte<EGoalState>& GoalState)
+void UQuestGlobalComponent::GetGoalState(FGuid DefaultNodeId, TEnumAsByte<EGoalState>& GoalState) const
 {
 	// Find in ongoing quest flow.
 	const auto Found = GoalInfoList.GoalInfos.FindByPredicate([DefaultNodeId](const FGoalInfo& Info)
@@ -190,7 +250,7 @@ bool UQuestGlobalComponent::GetGoalState(FGuid DefaultNodeId, TEnumAsByte<EGoalS
 	if (Found)
 	{
 		GoalState = Found->GoalState;
-		return true;
+		return;
 	}
 
 	// Find in finished quest flow.
@@ -204,12 +264,11 @@ bool UQuestGlobalComponent::GetGoalState(FGuid DefaultNodeId, TEnumAsByte<EGoalS
 		if (FoundGoalState)
 		{
 			GoalState = FoundGoalState->GoalState;
-			return true;
+			return;
 		}
 	}
 	
-	GoalState = EGS_Failed;
-	return false;
+	GoalState = EGS_NotFound;
 }
 
 FQuestSaveData UQuestGlobalComponent::GetQuestSaveData()
@@ -269,8 +328,10 @@ bool UQuestGlobalComponent::LoadQuestSaveData(FQuestSaveData SaveData)
 		auto NewState = FQuestFlowState(Pair.Key,
 			QFS_Ongoing,
 			FGuid());
-		QuestFlowStateList.QuestStates.Add(NewState);
+		const auto Index = QuestFlowStateList.QuestStates.Add(NewState);
 		QuestFlowStateList.MarkItemDirty(NewState);
+		QuestFlowStateList.QuestStatesMapping.Add(Pair.Key, Index);
+		QuestStateAddedEvent.Broadcast({Index});
 	}
 	for (auto Pair : SaveData.FinishedQuestFlowAssetSaveData)
 	{
@@ -278,10 +339,12 @@ bool UQuestGlobalComponent::LoadQuestSaveData(FQuestSaveData SaveData)
 			Pair.Value.State,
 			Pair.Value.FinishNodeGuids,
 			Pair.Value.Nodes);
-		QuestFlowStateList.QuestStates.Add(NewState);
+		const auto Index = QuestFlowStateList.QuestStates.Add(NewState);
 		QuestFlowStateList.MarkItemDirty(NewState);
+		QuestFlowStateList.QuestStatesMapping.Add(Pair.Key, Index);
+		QuestStateAddedEvent.Broadcast({Index});
 	}
-	OnRep_QuestFlowStateList();
+	// OnRep_QuestFlowStateList();
 
 	// When loaded, we call events for delegates.
 	const auto Subsystem = GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>();
@@ -297,16 +360,16 @@ bool UQuestGlobalComponent::LoadQuestSaveData(FQuestSaveData SaveData)
 	return true;
 }
 
-void UQuestGlobalComponent::OnRep_QuestFlowStateList()
-{
-	if (QuestFlowStateList.QuestStates.Last().QuestFlowState == QFS_Ongoing)
-	{
-		SetSelectedQuestFlow(QuestFlowStateList.QuestStates.Last().QuestFlowTemplate);
-	}
-	RecordedQuestFlowsChanged.Broadcast();
-}
+//void UQuestGlobalComponent::OnRep_QuestFlowStateList()
+//{
+//	if (QuestFlowStateList.QuestStates.Last().QuestFlowState == QFS_Ongoing)
+//	{
+//		SetSelectedQuestFlow(QuestFlowStateList.QuestStates.Last().QuestFlowTemplate);
+//	}
+//	RecordedQuestFlowsChanged.Broadcast();
+//}
 
-void UQuestGlobalComponent::OnRep_GoalInfoList()
-{
-	SelectedQuestFlowChanged.Broadcast();
-}
+//void UQuestGlobalComponent::OnRep_GoalInfoList()
+//{
+//	SelectedQuestFlowChanged.Broadcast();
+//}

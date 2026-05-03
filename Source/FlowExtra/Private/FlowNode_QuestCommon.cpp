@@ -81,23 +81,3 @@ void UFlowNode_QuestCommon::OnLoad_Implementation()
 
 	MarkThisGoalDirty(CurrentGoalState);
 }
-
-#if WITH_EDITOR
-FString UFlowNode_QuestCommon::GetNodeDescription() const
-{
-	FString MapPinInfo;
-	if (bUseStaticLocation)
-	{
-		MapPinInfo = "MapPinLocation : ";
-		for (auto location : StaticQuestGoalLocation)
-		{
-			MapPinInfo += location.ToString() + LINE_TERMINATOR;
-		}
-	}
-	else
-	{
-		MapPinInfo = "MapPinTag : " + MapPinActorIdentifyTags.ToString();
-	}
-	return Super::GetNodeDescription() + LINE_TERMINATOR + MapPinInfo;
-}
-#endif

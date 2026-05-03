@@ -6,6 +6,7 @@
 #include "FlowNode_Dialogue.h"
 #include "FlowNode_QuestCommon.h"
 #include "FlowNode_QuestInfo.h"
+#include "QuestStateQuery.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "FlowExtraFunctionLibrary.generated.h"
 
@@ -78,4 +79,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Flow|Dialogue")
 	static FString GetRichTextSubString(const FRichTextContext& RichTextContext, int PureCharLength);
+
+	UFUNCTION(BlueprintCallable, Category = "Flow|Quest")
+	static bool GetQuestQueryResult(const UQuestGlobalComponent* Component, const FQuestStateQuery& InQuery);
 };

@@ -3,6 +3,7 @@
 
 #include "FlowExtraFunctionLibrary.h"
 
+#include "DialogueComponent_Base.h"
 #include "FlowAsset.h"
 #include "FlowAsset_Dialogue.h"
 #include "FlowNode_Dialogue.h"
@@ -33,23 +34,12 @@ UFlowAsset* UFlowExtraFunctionLibrary::GetTemplateAssetFromInstance(UFlowAsset* 
 
 UFlowNode_Dialogue* UFlowExtraFunctionLibrary::GetCurrentDialogueNode(UObject* DialogueFlowOwner)
 {
-	if (!DialogueFlowOwner)
+	if (const auto Comp = Cast<UDialogueComponent_Base>(DialogueFlowOwner))
 	{
-		return nullptr;
-	}
-	auto FlowSubsystem = DialogueFlowOwner->GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>();
-	if (!FlowSubsystem)
-	{
-		return nullptr;
-	}
-	auto Instances = FlowSubsystem->GetRootInstancesByOwner(DialogueFlowOwner).Array();
-	if (!Instances.IsValidIndex(0))
-	{
-		return nullptr;
-	}
-	if (auto CurrentDialogueFlow = Cast<UFlowAsset_Dialogue>(Instances[0]))
-	{
-		return CurrentDialogueFlow->CurrentDialogueNode;
+		if (Comp->CurrentDialogueInstance)
+		{
+			return Comp->CurrentDialogueInstance->CurrentDialogueNode;
+		}
 	}
 
 	return nullptr;
@@ -205,4 +195,9 @@ FString UFlowExtraFunctionLibrary::GetRichTextSubString(const FRichTextContext& 
 	}
  
 	return SubString;
+}
+
+bool UFlowExtraFunctionLibrary::GetQuestQueryResult(const UQuestGlobalComponent* Component, const FQuestStateQuery& InQuery)
+{
+	return InQuery.GetResult(Component);
 }

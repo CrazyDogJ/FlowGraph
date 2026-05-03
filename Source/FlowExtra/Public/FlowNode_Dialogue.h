@@ -7,6 +7,7 @@
 #include "FlowNode_NotifySpecificActor.h"
 #include "FlowNode_Dialogue.generated.h"
 
+class UFlowAsset_Dialogue;
 class UDialogueExtraBehaviour;
 
 USTRUCT(BlueprintType)
@@ -37,6 +38,9 @@ class FLOWEXTRA_API UFlowNode_Dialogue : public UFlowNode
 
 public:
 #pragma region Properties
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow|Text")
+	FString DialogueId;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow|Text", meta = (Multiline = "true"))
 	TArray<FText> Text;
 
@@ -67,6 +71,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Flow")
 	bool IsLastText() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Flow")
+	UFlowAsset_Dialogue* GetDialogueFlowRecursively() const;
 #pragma endregion
 	
 #pragma region Override
@@ -74,7 +81,6 @@ public:
 	virtual void Finish() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	
 	virtual FString GetNodeDescription() const override;
 #endif
 #pragma endregion 

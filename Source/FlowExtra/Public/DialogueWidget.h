@@ -56,9 +56,12 @@ public:
 	void AddButtons();
 
 protected:
+	
+	UPROPERTY(Transient)
 	FUserWidgetPool ButtonPool;
 
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	virtual void NativeDestruct() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 
 	UUserWidget* GetOrCreateSelectionButton();

@@ -64,13 +64,14 @@ void UFlowNode_QuestFinish::ExecuteInput(const FName& PinName)
 				{
 					if (auto Goal = Cast<UFlowNode_QuestCommon>(Node))
 					{
-						FoundNodeState.Nodes.Add(FFinishedGoalState(Goal->NodeGuid, Goal->GetGoalDesc(), Goal->CurrentGoalState));
+						FoundNodeState.Nodes.Add(FFinishedGoalState(Node->GetGuid(), Goal->GetGoalDesc(Goal->GetGoalData()), Goal->CurrentGoalState));
 					}
 				}
 			}
 			
 			QuestComp->QuestFlowStateList.MarkItemDirty(FoundNodeState);
-			QuestComp->OnRep_QuestFlowStateList();
+			QuestComp->QuestStateChangedEvent.Broadcast({Found});
+			// QuestComp->OnRep_QuestFlowStateList();
 		}
 		
 		QuestComp->OnQuestFinished(

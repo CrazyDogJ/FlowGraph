@@ -87,6 +87,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, NetMulticast, Unreliable)
 	void CharacterSetMorphs(const TArray<FName>& MorphNames, const TArray<float>& MorphAlpha, bool bSetOrClear);
+
+	// Call on player's dialogue component !!!
+	UFUNCTION(BlueprintCallable, Server, Reliable)
+	void ForceEndFlow(UDialogueComponent_Base* FlowOwner);
 	
 	UFUNCTION(BlueprintCallable)
 	void SetupVariables(UPrimitiveComponent* InPrimitiveComponent, FName InComponentSocket);

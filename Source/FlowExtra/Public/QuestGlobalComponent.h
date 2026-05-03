@@ -11,6 +11,8 @@
 #include "InstancedStruct.h"
 #include "QuestGlobalComponent.generated.h"
 
+class UQuestGlobalComponent;
+
 UENUM(BlueprintType)
 enum EQuestFlowState : uint8
 {
@@ -107,6 +109,15 @@ struct FQuestFlowStateList : public FFastArraySerializer
 	{
 		return FastArrayDeltaSerialize<FQuestFlowState, FQuestFlowStateList>(QuestStates, DeltaParms, *this);
 	}
+
+	void PostReplicatedAdd(const TArrayView<int32>& AddedIndices, int32 FinalSize);
+	void PostReplicatedChange(const TArrayView<int32>& ChangedIndices, int32 FinalSize);
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, NotReplicated)
+	TObjectPtr<UQuestGlobalComponent> OuterQuestComponent = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, NotReplicated)
+	TMap<UFlowAsset*, int> QuestStatesMapping;
 	
 	UPROPERTY(BlueprintReadOnly)
 	TArray<FQuestFlowState> QuestStates;
@@ -126,14 +137,14 @@ struct FGoalInfo : public FFastArraySerializerItem
 	GENERATED_BODY()
 
 	FGoalInfo() : QuestCommonNodeDefault(nullptr), GoalState(EGS_Ongoing) {}
-	FGoalInfo(UFlowNode_QuestCommon* QuestCommonNodeDefault, const FText& InGoalDesc, EGoalState GoalState)
-		: QuestCommonNodeDefault(QuestCommonNodeDefault), GoalDesc(InGoalDesc), GoalState(GoalState) {}
+	FGoalInfo(UFlowNode_QuestCommon* QuestCommonNodeDefault, const FInstancedStruct& InGoalDesc, const EGoalState GoalState)
+		: QuestCommonNodeDefault(QuestCommonNodeDefault), GoalReplicatedData(InGoalDesc), GoalState(GoalState) {}
 	
 	UPROPERTY(BlueprintReadOnly)
 	UFlowNode_QuestCommon* QuestCommonNodeDefault;
 	
 	UPROPERTY(BlueprintReadOnly)
-	FText GoalDesc;
+	FInstancedStruct GoalReplicatedData;
 
 	UPROPERTY(BlueprintReadOnly)
 	TEnumAsByte<EGoalState> GoalState;
@@ -148,6 +159,15 @@ struct FGoalInfoList : public FFastArraySerializer
 	{
 		return FastArrayDeltaSerialize<FGoalInfo, FGoalInfoList>(GoalInfos, DeltaParms, *this);
 	}
+
+	void PostReplicatedAdd(const TArrayView<int32>& AddedIndices, int32 FinalSize);
+	void PostReplicatedChange(const TArrayView<int32>& ChangedIndices, int32 FinalSize);
+	
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, NotReplicated)
+	TObjectPtr<UQuestGlobalComponent> OuterQuestComponent = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, NotReplicated)
+	TMap<UFlowNode_QuestCommon*, int> GoalInfosMapping;
 	
 	UPROPERTY(BlueprintReadOnly)
 	TArray<FGoalInfo> GoalInfos;
@@ -161,6 +181,7 @@ struct TStructOpsTypeTraits<FGoalInfoList> : public TStructOpsTypeTraitsBase2<FG
 #pragma endregion
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRecordFlowChangedEvent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FQuestFastArrayEvent, const TArray<int32>&, Indices);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent), Blueprintable)
 class FLOWEXTRA_API UQuestGlobalComponent : public UActorComponent
@@ -193,7 +214,7 @@ public:
 	 * @return Quest state enum
 	 */
 	UFUNCTION(BlueprintPure, Category="Quest")
-	EQuestFlowState GetQuestFlowState(const UFlowAsset* FlowTemplate);
+	EQuestFlowState GetQuestFlowState(const UFlowAsset* FlowTemplate) const;
 
 	/**
 	 * Locally set current selected quest.
@@ -231,7 +252,7 @@ public:
 	bool HasPersistentTagFlag(FGameplayTag Tag) const;
 	
 	UFUNCTION(BlueprintCallable, Category="Quest")
-	bool GetGoalState(FGuid DefaultNodeId, TEnumAsByte<EGoalState>& GoalState);
+	void GetGoalState(FGuid DefaultNodeId, TEnumAsByte<EGoalState>& GoalState) const;
 	
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Quest")
 	FQuestSaveData GetQuestSaveData();
@@ -239,11 +260,11 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Quest")
 	bool LoadQuestSaveData(FQuestSaveData SaveData);
 	
-	UFUNCTION()
-	void OnRep_QuestFlowStateList();
+	// UFUNCTION()
+	// void OnRep_QuestFlowStateList();
 
-	UFUNCTION()
-	void OnRep_GoalInfoList();
+	// UFUNCTION()
+	// void OnRep_GoalInfoList();
 #pragma endregion
 
 #pragma region Properties
@@ -251,7 +272,16 @@ public:
 	FRecordFlowChangedEvent SelectedQuestFlowChanged;
 
 	UPROPERTY(BlueprintAssignable)
-	FRecordFlowChangedEvent RecordedQuestFlowsChanged;
+	FQuestFastArrayEvent QuestStateAddedEvent;
+
+	UPROPERTY(BlueprintAssignable)
+	FQuestFastArrayEvent QuestStateChangedEvent;
+
+	UPROPERTY(BlueprintAssignable)
+	FQuestFastArrayEvent GoalInfoAddedEvent;
+
+	UPROPERTY(BlueprintAssignable)
+	FQuestFastArrayEvent GoalInfoChangedEvent;
 
 	UFUNCTION(BlueprintImplementableEvent)
 	void OnQuestFinished(UFlowAsset_Quest* QuestTemplate, EQuestFlowState FinishState);
@@ -260,17 +290,18 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 	UFlowAsset* SelectedQuestFlow;
 	
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_QuestFlowStateList)
+	UPROPERTY(BlueprintReadOnly, Replicated/**Using=OnRep_QuestFlowStateList*/)
 	FQuestFlowStateList QuestFlowStateList;
 
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_GoalInfoList)
+	UPROPERTY(BlueprintReadOnly, Replicated/**Using=OnRep_GoalInfoList*/)
 	FGoalInfoList GoalInfoList;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Replicated)
 	FGameplayTagContainer PersistentTagFlag;
 	
 #pragma endregion
 	
 protected:
 	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void PostLoad() override;
 };

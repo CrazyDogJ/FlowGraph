@@ -17,25 +17,35 @@ void UFlowNode_Dialogue::ContinueDialogue_Implementation(int SelectionIndex)
 	// If current text index is max
 	if (IsLastText())
 	{
-		if (HasOptions() && SelectionIndex >= 0)
+		if (HasOptions())
 		{
-			TArray<FName> OptionsKeys;
-			Options.GenerateKeyArray(OptionsKeys);
-			TriggerOutput(OptionsKeys[SelectionIndex], true);
+			if (SelectionIndex >= 0)
+			{
+				TArray<FName> OptionsKeys;
+				Options.GenerateKeyArray(OptionsKeys);
+				TriggerOutput(OptionsKeys[SelectionIndex], true);
+			}
 		}
 		else
 		{
-			TriggerFirstOutput(true);
+			// Only trigger when index is -1;
+			if (SelectionIndex < 0)
+			{
+				TriggerFirstOutput(true);
+			}
 		}
 	}
 	else
 	{
 		CurrentTextIndex ++;
-		for (auto Actor : Cast<UFlowAsset_Dialogue>(GetFlowAsset())->GetIdentityActors())
+		if (const auto DialogueFlow = GetDialogueFlowRecursively())
 		{
-			if (const auto Comp = Actor->GetComponentByClass<UDialogueComponent_Base>())
+			for (const auto Actor : DialogueFlow->GetIdentityActors())
 			{
-				Comp->OnDialogueNodeTextChanged.Broadcast(this);
+				if (const auto Comp = Actor->GetComponentByClass<UDialogueComponent_Base>())
+				{
+					Comp->OnDialogueNodeTextChanged.Broadcast(this);
+				}
 			}
 		}
 	}
@@ -58,6 +68,28 @@ bool UFlowNode_Dialogue::IsLastText() const
 	return CurrentTextIndex == Text.Num() - 1;
 }
 
+UFlowAsset_Dialogue* UFlowNode_Dialogue::GetDialogueFlowRecursively() const
+{
+	const auto FlowAsset = GetFlowAsset();
+	if (const auto DialogueFlow = Cast<UFlowAsset_Dialogue>(FlowAsset))
+	{
+		return DialogueFlow;
+	}
+
+	auto Parent = FlowAsset->GetParentInstance();
+	while (Parent)
+	{
+		if (const auto DialogueFlow = Cast<UFlowAsset_Dialogue>(Parent))
+		{
+			return DialogueFlow;
+		}
+
+		Parent = Parent->GetParentInstance();
+	}
+
+	return nullptr;
+}
+
 void UFlowNode_Dialogue::ExecuteInput(const FName& PinName)
 {
 	if (Text.Num() <= 0)
@@ -68,8 +100,9 @@ void UFlowNode_Dialogue::ExecuteInput(const FName& PinName)
 	}
 	
 	CurrentTextIndex = 0;
-	
-	if (auto Flow_Dialogue = Cast<UFlowAsset_Dialogue>(GetFlowAsset()))
+
+	const auto Flow_Dialogue = GetDialogueFlowRecursively();
+	if (Flow_Dialogue)
 	{
 		Flow_Dialogue->CurrentDialogueNode = this;
 	}
@@ -79,13 +112,16 @@ void UFlowNode_Dialogue::ExecuteInput(const FName& PinName)
 		DialogueCameraCalculation->InstanceDialogueNode = this;
 		DialogueCameraCalculation->SetupVariables();
 	}
-	
-	for (auto Actor : Cast<UFlowAsset_Dialogue>(GetFlowAsset())->GetIdentityActors())
+
+	if (Flow_Dialogue)
 	{
-		if (const auto Comp = Actor->GetComponentByClass<UDialogueComponent_Base>())
+		for (const auto Actor : Flow_Dialogue->GetIdentityActors())
 		{
-			Comp->OnDialogueNodeStart.Broadcast(this);
-			Comp->OnDialogueNodeTextChanged.Broadcast(this);
+			if (const auto Comp = Actor->GetComponentByClass<UDialogueComponent_Base>())
+			{
+				Comp->OnDialogueNodeStart.Broadcast(this);
+				Comp->OnDialogueNodeTextChanged.Broadcast(this);
+			}
 		}
 	}
 
@@ -106,12 +142,15 @@ void UFlowNode_Dialogue::Finish()
 	{
 		DialogueCameraCalculation->ClearCamera();
 	}
-	
-	for (auto Actor : Cast<UFlowAsset_Dialogue>(GetFlowAsset())->GetIdentityActors())
+
+	if (const auto Flow_Dialogue = GetDialogueFlowRecursively())
 	{
-		if (const auto Comp = Actor->GetComponentByClass<UDialogueComponent_Base>())
+		for (const auto Actor : Flow_Dialogue->GetIdentityActors())
 		{
-			Comp->OnDialogueNodeEnd.Broadcast(this);
+			if (const auto Comp = Actor->GetComponentByClass<UDialogueComponent_Base>())
+			{
+				Comp->OnDialogueNodeEnd.Broadcast(this);
+			}
 		}
 	}
 
@@ -149,6 +188,21 @@ void UFlowNode_Dialogue::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+	
+#define LOCTEXT_NAMESPACE "DialogueFlow"
+	for (int i = 0; i < Text.Num(); ++i)
+	{
+		auto& Itr = Text[i];
+		Itr = FText::ChangeKey(TEXT("DialogueFlow"),
+			FString::Printf(TEXT("%s_Text_%i"), *DialogueId, i), Itr);
+	}
+
+	for (auto& Pair : Options)
+	{
+		Pair.Value = FText::ChangeKey(TEXT("DialogueFlow"),
+			FString::Printf(TEXT("%s_Option_%s"), *DialogueId, *Pair.Key.ToString()), Pair.Value);
+	}
+#undef LOCTEXT_NAMESPACE
 }
 
 FString UFlowNode_Dialogue::GetNodeDescription() const

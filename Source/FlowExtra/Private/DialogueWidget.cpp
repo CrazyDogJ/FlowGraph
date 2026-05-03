@@ -12,21 +12,26 @@ UDialogueWidget::UDialogueWidget(const FObjectInitializer& Initializer)
 
 UUserWidget* UDialogueWidget::GetOrCreateSelectionButton()
 {
-	return ButtonPool.GetOrCreateInstance(SelectionButtonClass);
+	if (ButtonPool.IsInitialized())
+	{
+		return ButtonPool.GetOrCreateInstance(SelectionButtonClass);
+	}
+
+	return nullptr;
 }
 
 void UDialogueWidget::HideList()
 {
 	if (const auto List = GetSelectionButtonList())
 		List->SetVisibility(ESlateVisibility::Collapsed);
-	
-	for (const auto Itr : ButtonPool.GetActiveWidgets())
+
+	for (const auto Option : OptionsWidgets)
 	{
-		Itr->RemoveFromParent();
+		Option->RemoveFromParent();
+		ButtonPool.Release(Option);
 	}
 
 	OptionsWidgets.Empty();
-	ButtonPool.ReleaseAll();
 }
 
 void UDialogueWidget::ShowList(const TMap<FName, FText>& InOptions)
@@ -90,6 +95,14 @@ void UDialogueWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 			PopTime = 0.0f;
 		}
 	}
+}
+
+void UDialogueWidget::NativeDestruct()
+{
+	Super::NativeDestruct();
+
+	// Check pool is released.
+	HideList();
 }
 
 void UDialogueWidget::ReleaseSlateResources(bool bReleaseChildren)

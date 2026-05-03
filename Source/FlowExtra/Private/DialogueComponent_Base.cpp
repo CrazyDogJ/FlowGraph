@@ -123,9 +123,21 @@ void UDialogueComponent_Base::OnDialogueFlowStartEvent(UFlowAsset_Dialogue* Dial
 
 void UDialogueComponent_Base::OnDialogueFlowEndEvent(UFlowAsset_Dialogue* DialogueFlow)
 {
-	if (CurrentDialogueMontage)
+	// Authority multicast
+	if (GetOwner()->HasAuthority())
 	{
-		CharacterPlayMontage(nullptr, EDMM_StopCurrent);
+		// Clear morph.
+		CharacterSetMorphs({}, {}, false);
+
+		// Clear montage.
+		if (CurrentDialogueMontage)
+		{
+			CharacterPlayMontage(nullptr, EDMM_StopCurrent);
+		}
+	}
+	else if (GetOwner()->GetOwner())
+	{
+		ForceEndFlow(Cast<UDialogueComponent_Base>(DialogueFlow->GetOwner()));
 	}
 
 	if (auto Pawn = Cast<APawn>(GetOwner()))
@@ -149,7 +161,11 @@ void UDialogueComponent_Base::OnDialogueFlowEndEvent(UFlowAsset_Dialogue* Dialog
 	}
 
 	CurrentDialogueInstance = nullptr;
-	bInDialogue = false;
+	
+	if (GetOwner()->HasAuthority())
+	{
+		bInDialogue = false;
+	}
 }
 
 void UDialogueComponent_Base::CharacterPlayMontage_Implementation(UAnimMontage* AnimMontage, EDialogMontageMode Mode)
@@ -205,6 +221,14 @@ void UDialogueComponent_Base::CharacterSetMorphs_Implementation(const TArray<FNa
 		{
 			Skel->SetMorphTarget(MorphNames[id], bSetOrClear ? MorphAlpha[id] : 0.0f);
 		}
+	}
+}
+
+void UDialogueComponent_Base::ForceEndFlow_Implementation(UDialogueComponent_Base* FlowOwner)
+{
+	if (FlowOwner && FlowOwner->CurrentDialogueInstance)
+	{
+		FlowOwner->CurrentDialogueInstance->FinishFlow(EFlowFinishPolicy::Keep, true);
 	}
 }
 

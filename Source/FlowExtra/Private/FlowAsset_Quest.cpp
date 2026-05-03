@@ -90,15 +90,30 @@ void UFlowAsset_Quest::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
+	FTextKey Name = FString::Printf(TEXT("QFN_%s"), *QuestID);
+	FTextKey Desc = FString::Printf(TEXT("QFD_%s"), *QuestID);
+	
 	FName PropertyName = (PropertyChangedEvent.Property != nullptr) ? PropertyChangedEvent.Property->GetFName() : NAME_None;
 	// Auto set item name and description.
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UFlowAsset_Quest, QuestID))
 	{
-		FTextKey Name = FString::Printf(TEXT("QFN_%s"), *QuestID);
-		FTextKey Desc = FString::Printf(TEXT("QFD_%s"), *QuestID);
 #define LOCTEXT_NAMESPACE "QuestFlow"
 		QuestName = QuestName.ChangeKey(TEXT("QuestFlow"), Name, QuestName);
 		QuestDescription = QuestDescription.ChangeKey(TEXT("QuestFlow"), Desc, QuestDescription);
+#undef LOCTEXT_NAMESPACE
+	}
+	
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UFlowAsset_Quest, QuestName))
+	{
+#define LOCTEXT_NAMESPACE "QuestFlow"
+		QuestName = QuestName.ChangeKey(TEXT("QuestFlow"), Name, QuestName);
+#undef LOCTEXT_NAMESPACE
+	}
+
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UFlowAsset_Quest, QuestDescription))
+	{
+#define LOCTEXT_NAMESPACE "QuestFlow"
+		QuestName = QuestName.ChangeKey(TEXT("QuestFlow"), Desc, QuestDescription);
 #undef LOCTEXT_NAMESPACE
 	}
 }
