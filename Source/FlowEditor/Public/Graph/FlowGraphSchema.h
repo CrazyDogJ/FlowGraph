@@ -1,11 +1,10 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
-
 #pragma once
 
 #include "EdGraph/EdGraphSchema.h"
-#include "Runtime/Launch/Resources/Version.h"
 #include "Templates/SubclassOf.h"
 
+#include "Policies/FlowPinTypeMatchPolicy.h"
 #include "FlowGraphSchema.generated.h"
 
 class UFlowAsset;
@@ -13,9 +12,14 @@ class UFlowNode;
 class UFlowNodeAddOn;
 class UFlowNodeBase;
 class UFlowGraphNode;
+struct FFlowPinType;
+class UFlowGraphNode_Reroute;
 
 DECLARE_MULTICAST_DELEGATE(FFlowGraphSchemaRefresh);
 
+/**
+ * Flow-specific implementation of engine's Graph Schema.
+ */
 UCLASS()
 class FLOWEDITOR_API UFlowGraphSchema : public UEdGraphSchema
 {
@@ -30,11 +34,6 @@ private:
 	static TMap<FName, FAssetData> BlueprintFlowNodes;
 	static TMap<FName, FAssetData> BlueprintFlowNodeAddOns;
 	static TMap<TSubclassOf<UFlowNodeBase>, TSubclassOf<UEdGraphNode>> GraphNodesByFlowNodes;
-
-	// cached pointers to struct types
-	static const UScriptStruct* VectorStruct;
-	static const UScriptStruct* RotatorStruct;
-	static const UScriptStruct* TransformStruct;
 
 	static bool bBlueprintCompilationPending;
 
@@ -56,12 +55,7 @@ public:
 	virtual int32 GetNodeSelectionCount(const UEdGraph* Graph) const override;
 	virtual TSharedPtr<FEdGraphSchemaAction> GetCreateCommentAction() const override;
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	virtual void OnPinConnectionDoubleCicked(UEdGraphPin* PinA, UEdGraphPin* PinB, const FVector2D& GraphPosition) const override;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 6
 	virtual void OnPinConnectionDoubleCicked(UEdGraphPin* PinA, UEdGraphPin* PinB, const FVector2f& GraphPosition) const override;
-#endif
 	
 	virtual bool IsCacheVisualizationOutOfDate(int32 InVisualizationCacheID) const override;
 	virtual int32 GetCurrentVisualizationCacheID() const override;
@@ -72,7 +66,13 @@ public:
 	virtual bool CanShowDataTooltipForPin(const UEdGraphPin& Pin) const override;
 	// --
 
-	// FlowGraphSchema
+	static const FFlowPinType* LookupDataPinTypeForPinCategory(const FName& PinCategory);
+
+	bool ArePinSubCategoryObjectsCompatible(
+		const UStruct* OutputStruct,
+		const UStruct* InputStruct,
+		const FFlowPinTypeMatchPolicy& PinTypeMatchPolicy,
+		FPinConnectionResponse& OutConnectionResponse) const;
 
 	/**
 	 * Returns true if the two pin types are schema compatible.  Handles outputting a more derived
@@ -85,7 +85,7 @@ public:
 	 *
 	 * @return	true if the pin types are compatible.
 	 */
-	virtual bool ArePinTypesCompatible(const FEdGraphPinType& Output, const FEdGraphPinType& Input, const UClass* CallingContext = NULL, bool bIgnoreArray = false) const;
+	virtual bool ArePinTypesCompatible(const UEdGraphPin& OutputPin, const UEdGraphPin& InputPin, const UClass* CallingContext = NULL, bool bIgnoreArray = false) const;
 
 	/**
 	 * Returns the connection response for connecting PinA to PinB, which have already been determined to be compatible
@@ -116,13 +116,22 @@ public:
 
 	static bool IsPIESimulating();
 
-protected:
-	static UFlowGraphNode* CreateDefaultNode(UEdGraph& Graph, const TSubclassOf<UFlowNode>& NodeClass, const FVector2D& Offset, bool bPlacedAsGhostNode);
+	static const UFlowNodeBase* GetFlowNodeBaseForPin(const UEdGraphPin& EdGraphPin);
+	static const UFlowAsset* GetFlowAssetForPin(const UEdGraphPin& EdGraphPin);
 
-	static bool ArePinCategoriesEffectivelyMatching(const FName& InputPinCategory, const FName& OutputPinCategory, bool bAllowImplicitCasts = true);
+protected:
+
+	static UFlowGraphNode* CreateDefaultNode(UEdGraph& Graph, const TSubclassOf<UFlowNode>& NodeClass, const FVector2f& Offset, bool bPlacedAsGhostNode);
+
+	/* Helper to break incompatible connections on a set of pins. */
+	template <bool bIsInputPins>
+	void BreakIncompatibleConnections(UFlowGraphNode_Reroute* RerouteNode, const TArray<UEdGraphPin*>& Pins, const UEdGraphPin& TypeFromPin) const;
+
+	/* Handles post-connection notifications for affected nodes. */
+	void NotifyNodesChanged(UFlowGraphNode* NodeA, UFlowGraphNode* NodeB, UEdGraph* Graph) const;
 
 private:
-	static void ApplyNodeOrAddOnFilter(const UFlowAsset* AssetClassDefaults, const UClass* FlowNodeClass, TArray<UFlowNodeBase*>& FilteredNodes);
+	static void ApplyNodeOrAddOnFilter(const UFlowAsset* EditedFlowAsset, const UClass* FlowNodeClass, TArray<UFlowNodeBase*>& FilteredNodes);
 	static void GetFlowNodeActions(FGraphActionMenuBuilder& ActionMenuBuilder, const UFlowAsset* EditedFlowAsset, const FString& CategoryName);
 	static TArray<UFlowNodeBase*> GetFilteredPlaceableNodesOrAddOns(const UFlowAsset* EditedFlowAsset, const TArray<UClass*>& InNativeNodesOrAddOns, const TMap<FName, FAssetData>& InBlueprintNodesOrAddOns);
 
@@ -151,6 +160,6 @@ public:
 	static const UFlowAsset* GetEditedAssetOrClassDefault(const UEdGraph* Graph);
 
 private:
-	// ID for checking dirty status of node titles against
+	/* ID for checking dirty status of node titles against. */
 	static int32 CurrentCacheRefreshID;
 };

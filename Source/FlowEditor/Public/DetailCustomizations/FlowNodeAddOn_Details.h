@@ -1,10 +1,13 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
-
 #pragma once
 
+#include "FlowDataPinValueOwnerCustomization.h"
 #include "IDetailCustomization.h"
+#include "Templates/SharedPointer.h"
 
-class FFlowNodeAddOn_Details final : public IDetailCustomization
+class UFlowNodeAddOn;
+
+class FFlowNodeAddOn_Details final : public TFlowDataPinValueOwnerCustomization<UFlowNodeAddOn>
 {
 public:
 	static TSharedRef<IDetailCustomization> MakeInstance()
@@ -15,4 +18,7 @@ public:
 	// IDetailCustomization
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
 	// --
+
+private:
+	TWeakObjectPtr<UFlowNodeAddOn> EditedAddOn = nullptr;
 };

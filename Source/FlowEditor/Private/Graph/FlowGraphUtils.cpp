@@ -16,11 +16,20 @@ TSharedPtr<FFlowAssetEditor> FFlowGraphUtils::GetFlowAssetEditor(const UEdGraph*
 	TSharedPtr<FFlowAssetEditor> FlowAssetEditor;
 	if (const UFlowAsset* FlowAsset = Cast<const UFlowGraph>(Graph)->GetFlowAsset())
 	{
-		const TSharedPtr<IToolkit> FoundAssetEditor = FToolkitManager::Get().FindEditorForAsset(FlowAsset);
-		if (FoundAssetEditor.IsValid())
-		{
-			FlowAssetEditor = StaticCastSharedPtr<FFlowAssetEditor>(FoundAssetEditor);
-		}
+		FlowAssetEditor = GetFlowAssetEditor(FlowAsset);
+	}
+	return FlowAssetEditor;
+}
+
+TSharedPtr<FFlowAssetEditor> FFlowGraphUtils::GetFlowAssetEditor(const UFlowAsset* FlowAsset)
+{
+	check(FlowAsset);
+
+	TSharedPtr<FFlowAssetEditor> FlowAssetEditor;
+	const TSharedPtr<IToolkit> FoundAssetEditor = FToolkitManager::Get().FindEditorForAsset(FlowAsset);
+	if (FoundAssetEditor.IsValid())
+	{
+		FlowAssetEditor = StaticCastSharedPtr<FFlowAssetEditor>(FoundAssetEditor);
 	}
 	return FlowAssetEditor;
 }
@@ -41,7 +50,7 @@ TSharedPtr<SFlowGraphEditor> FFlowGraphUtils::GetFlowGraphEditor(const UEdGraph*
 FString FFlowGraphUtils::RemovePrefixFromNodeText(const FText& Source)
 {
 	FString SourceString = Source.ToString();
-	TArray<FString> NodePrefixes = UFlowGraphSettings::Get()->NodePrefixesToRemove;
+	TArray<FString> NodePrefixes = GetDefault<UFlowGraphSettings>()->NodePrefixesToRemove;
 	
 	for (FString Prefix : NodePrefixes)
 	{

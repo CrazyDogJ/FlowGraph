@@ -9,9 +9,8 @@
 
 #define LOCTEXT_NAMESPACE "FlowNode_Log"
 
-UFlowNode_Log::UFlowNode_Log(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
-	, Message()
+UFlowNode_Log::UFlowNode_Log()
+	: Message()
 	, Verbosity(EFlowLogVerbosity::Warning)
 	, bPrintToScreen(true)
 	, Duration(5.0f)
@@ -29,66 +28,82 @@ UFlowNode_Log::UFlowNode_Log(const FObjectInitializer& ObjectInitializer)
 void UFlowNode_Log::ExecuteInput(const FName& PinName)
 {
 	// Get the Message from either the default (Message property) or the data pin (if connected)
-	FFlowDataPinResult_String MessageResult = TryResolveDataPinAsString(GET_MEMBER_NAME_CHECKED(UFlowNode_Log, Message));
+	FString ResolvedMessage;
+	const EFlowDataPinResolveResult MessageResult = TryResolveDataPinValue<FFlowPinType_String>(GET_MEMBER_NAME_CHECKED(ThisClass, Message), ResolvedMessage);
 
-	if (MessageResult.Result == EFlowDataPinResolveResult::FailedMissingPin)
+	// #FlowDataPinLegacy - retire this backward compatibility when we remove legacy data pin support?  
+	FLOW_ASSERT_ENUM_MAX(EFlowDataPinResolveResult, 9);
+	if (MessageResult == EFlowDataPinResolveResult::FailedUnknownPin)
 	{
 		// Handle lookup of a FlowNode_Log that predated DataPins
-		MessageResult.Result = EFlowDataPinResolveResult::Success;
-		MessageResult.SetValue(Message);
+		ResolvedMessage = Message;
 	}
+	// --
 
 	// Format Message with named properties
-	FText FormattedText;
-	if (TryFormatTextWithNamedPropertiesAsParameters(FText::FromString(MessageResult.Value), FormattedText))
-	{
-		MessageResult.Value = FormattedText.ToString();
-	}
+	FText FormattedMessage = FText::FromString(ResolvedMessage);
+	(void) TryFormatTextWithNamedPropertiesAsParameters(FormattedMessage, FormattedMessage);
 
 	// Display the message
-	check(MessageResult.Result == EFlowDataPinResolveResult::Success);
 
 	switch (Verbosity)
 	{
 		case EFlowLogVerbosity::Error:
-			UE_LOG(LogFlow, Error, TEXT("%s"), *MessageResult.Value);
+			UE_LOG(LogFlow, Error, TEXT("%s"), *FormattedMessage.ToString());
 			break;
 		case EFlowLogVerbosity::Warning:
-			UE_LOG(LogFlow, Warning, TEXT("%s"), *MessageResult.Value);
+			UE_LOG(LogFlow, Warning, TEXT("%s"), *FormattedMessage.ToString());
 			break;
 		case EFlowLogVerbosity::Display:
-			UE_LOG(LogFlow, Display, TEXT("%s"), *MessageResult.Value);
+			UE_LOG(LogFlow, Display, TEXT("%s"), *FormattedMessage.ToString());
 			break;
 		case EFlowLogVerbosity::Log:
-			UE_LOG(LogFlow, Log, TEXT("%s"), *MessageResult.Value);
+			UE_LOG(LogFlow, Log, TEXT("%s"), *FormattedMessage.ToString());
 			break;
 		case EFlowLogVerbosity::Verbose:
-			UE_LOG(LogFlow, Verbose, TEXT("%s"), *MessageResult.Value);
+			UE_LOG(LogFlow, Verbose, TEXT("%s"), *FormattedMessage.ToString());
 			break;
 		case EFlowLogVerbosity::VeryVerbose:
-			UE_LOG(LogFlow, VeryVerbose, TEXT("%s"), *MessageResult.Value);
+			UE_LOG(LogFlow, VeryVerbose, TEXT("%s"), *FormattedMessage.ToString());
 			break;
 		default: ;
 	}
 
 	if (bPrintToScreen)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, Duration, TextColor, MessageResult.Value);
+		GEngine->AddOnScreenDebugMessage(-1, Duration, TextColor, FormattedMessage.ToString());
 	}
 
 	TriggerFirstOutput(true);
 }
 
 #if WITH_EDITOR
+void UFlowNode_Log::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChainEvent)
+{
+	const auto& Property = PropertyChainEvent.PropertyChain.GetActiveMemberNode()->GetValue();
+	constexpr bool bIsInput = true;
+	OnPostEditEnsureAllNamedPropertiesPinDirection(*Property, bIsInput);
+
+	Super::PostEditChangeChainProperty(PropertyChainEvent);
+}
+
+void UFlowNode_Log::OnEditorPinConnectionsChanged(const TArray<FFlowPinConnectionChange>& Changes)
+{
+	Super::OnEditorPinConnectionsChanged(Changes);
+
+	UpdateNodeConfigText();
+}
 
 void UFlowNode_Log::UpdateNodeConfigText_Implementation()
 {
-	constexpr bool bErrorIfInputPinNotFound = false;
-	const bool bIsInputConnected = IsInputConnected(GET_MEMBER_NAME_CHECKED(UFlowNode_Log, Message), bErrorIfInputPinNotFound);
+	constexpr bool bErrorIfInputPinNotFound = true;
+
+	FConnectedPin ConnectedPin;
+	const bool bIsInputConnected = FindFirstInputPinConnection(GET_MEMBER_NAME_CHECKED(ThisClass, Message), bErrorIfInputPinNotFound, ConnectedPin);
 
 	if (bIsInputConnected)
 	{
-		SetNodeConfigText(FText());
+		SetNodeConfigText(FText::Format(LOCTEXT("LogFromPin", "Message from: {0}"), { FText::FromString(ConnectedPin.PinName.ToString()) }));
 	}
 	else
 	{

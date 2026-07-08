@@ -1,29 +1,24 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
-
 using UnrealBuildTool;
 
 public class FlowEditor : ModuleRules
 {
 	public FlowEditor(ReadOnlyTargetRules target) : base(target)
 	{
-		if (CppStandard is null || CppStandard != CppStandardVersion.Cpp20)
-		{
-			CppStandard = CppStandardVersion.Cpp20;
-		}
-
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new[]
-		{
+		PublicDependencyModuleNames.AddRange(
+		[
 			"AssetSearch",
 			"EditorSubsystem",
 			"Flow",
 			"FlowDebugger",
 			"MessageLog"
-		});
+		]);
 
-		PrivateDependencyModuleNames.AddRange(new[]
-		{
+		PrivateDependencyModuleNames.AddRange(
+		[
+			"AIModule", // For BlueprintNodeHelpers::DescribeProperty (could be copy/pasted out to remove editor-only dependency)
 			"ApplicationCore",
 			"AssetDefinition",
 			"AssetTools",
@@ -60,8 +55,7 @@ public class FlowEditor : ModuleRules
 			"SlateCore",
 			"SourceControl",
 			"ToolMenus",
-			"UnrealEd",
-			"AIModule"
-		});
+			"UnrealEd"
+		]);
 	}
 }

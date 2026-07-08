@@ -268,10 +268,14 @@ bool UFlowAssetFactory::ConfigureProperties()
 
 bool UFlowAssetFactory::ConfigurePropertiesInternal(const FText& TitleText)
 {
-	AssetClass = UFlowGraphSettings::Get()->DefaultFlowAssetClass;
-	if (AssetClass) // Class was set in settings
+	const TSoftClassPtr<UFlowAsset> DefaultClass = GetDefault<UFlowGraphSettings>()->DefaultFlowAssetClass; 
+	if (!DefaultClass.IsNull())
 	{
-		return true;
+		AssetClass = DefaultClass.LoadSynchronous();
+		if (AssetClass) // Class was set in settings
+		{
+			return true;
+		}
 	}
 
 	// Load the Class Viewer module to display a class picker

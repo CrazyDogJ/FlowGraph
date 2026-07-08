@@ -63,11 +63,18 @@ EFlowAddOnAcceptResult UFlowNodeAddOn::AcceptFlowNodeAddOnParent_Implementation(
 	return EFlowAddOnAcceptResult::Undetermined;
 }
 
+void UFlowNodeAddOn::NotifyPreloadComplete()
+{
+	if (ensure(FlowNode))
+	{
+		FlowNode->NotifyPreloadComplete();
+	}
+}
+
 UFlowNode* UFlowNodeAddOn::GetFlowNode() const
 {
-	// We are making the assumption that this would addlways be known
-	// during runtime and that we are not calling this method before the addon has been
-	// initialized.
+	// We are making the assumption that this would always be known during runtime 
+	// and that we are not calling this method before the addon has been initialized.
 	ensure(FlowNode);
 
 	return FlowNode;
@@ -122,7 +129,7 @@ bool UFlowNodeAddOn::IsSupportedInputPinName(const FName& PinName) const
 void UFlowNodeAddOn::CacheFlowNode()
 {
 	FlowNode = FindOwningFlowNode();
-	
+
 	ensureAsRuntimeWarning(FlowNode);
 }
 
@@ -132,7 +139,7 @@ TArray<FFlowPin> UFlowNodeAddOn::GetPinsForContext(const TArray<FFlowPin>& Conte
 	TArray<FFlowPin> ContextPins = Super::GetContextInputs();
 
 	ContextPins.Reserve(ContextPins.Num() + Context.Num());
-	
+
 	for (const FFlowPin& InputPin : Context)
 	{
 		if (InputPin.IsValid())
@@ -160,6 +167,6 @@ TArray<FFlowPin> UFlowNodeAddOn::GetContextOutputs() const
 
 void UFlowNodeAddOn::RequestReconstructionOnOwningFlowNode() const
 {
-	(void) OnAddOnRequestedParentReconstruction.ExecuteIfBound();	
+	(void)OnAddOnRequestedParentReconstruction.ExecuteIfBound();
 }
 #endif // WITH_EDITOR

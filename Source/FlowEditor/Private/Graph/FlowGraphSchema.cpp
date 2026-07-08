@@ -12,14 +12,18 @@
 
 #include "FlowAsset.h"
 #include "FlowEditorLogChannels.h"
+#include "FlowPinSubsystem.h"
 #include "FlowSettings.h"
 #include "AddOns/FlowNodeAddOn.h"
+#include "Graph/Nodes/FlowGraphNode_Reroute.h"
 #include "Nodes/FlowNode.h"
 #include "Nodes/FlowNodeAddOnBlueprint.h"
 #include "Nodes/FlowNodeBlueprint.h"
 #include "Nodes/Graph/FlowNode_CustomInput.h"
 #include "Nodes/Graph/FlowNode_Start.h"
 #include "Nodes/Route/FlowNode_Reroute.h"
+#include "Policies/FlowPinConnectionPolicy.h"
+#include "Types/FlowPinType.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "EdGraph/EdGraph.h"
@@ -27,13 +31,8 @@
 #include "Editor.h"
 #include "Engine/MemberReference.h"
 #include "Kismet2/KismetEditorUtilities.h"
-#include "ScopedTransaction.h"
-
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 6
-#include "Kismet/BlueprintTypeConversions.h"
-#else
 #include "Runtime/Engine/Internal/Kismet/BlueprintTypeConversions.h"
-#endif
+#include "ScopedTransaction.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(FlowGraphSchema)
 
@@ -50,10 +49,6 @@ bool UFlowGraphSchema::bBlueprintCompilationPending;
 int32 UFlowGraphSchema::CurrentCacheRefreshID = 0;
 
 FFlowGraphSchemaRefresh UFlowGraphSchema::OnNodeListChanged;
-
-const UScriptStruct* UFlowGraphSchema::VectorStruct = nullptr;
-const UScriptStruct* UFlowGraphSchema::RotatorStruct = nullptr;
-const UScriptStruct* UFlowGraphSchema::TransformStruct = nullptr;
 
 namespace FlowGraphSchema::Private
 {
@@ -203,14 +198,6 @@ UFlowGraphSchema::UFlowGraphSchema(const FObjectInitializer& ObjectInitializer)
 			GetDefault<UFlowGraphSchema>()->ForceVisualizationCacheClear();
 		});
 	}
-
-	// Initialize cached static references to well-known struct types
-	if (VectorStruct == nullptr)
-	{
-		VectorStruct = TBaseStructure<FVector>::Get();
-		RotatorStruct = TBaseStructure<FRotator>::Get();
-		TransformStruct = TBaseStructure<FTransform>::Get();
-	}
 }
 
 void UFlowGraphSchema::SubscribeToAssetChanges()
@@ -251,8 +238,8 @@ void UFlowGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& ContextM
 void UFlowGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) const
 {
 	const UFlowAsset* AssetClassDefaults = GetEditedAssetOrClassDefault(&Graph);
-	static const FVector2D NodeOffsetIncrement = FVector2D(0, 128);
-	FVector2D NodeOffset = FVector2D::ZeroVector;
+	static const FVector2f NodeOffsetIncrement = FVector2f(0, 128);
+	FVector2f NodeOffset = FVector2f::ZeroVector;
 
 	// Start node
 	CreateDefaultNode(Graph, UFlowNode_Start::StaticClass(), NodeOffset, AssetClassDefaults->bStartNodePlacedAsGhostNode);
@@ -274,7 +261,7 @@ void UFlowGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) const
 	FlowAsset->HarvestNodeConnections();
 }
 
-UFlowGraphNode* UFlowGraphSchema::CreateDefaultNode(UEdGraph& Graph, const TSubclassOf<UFlowNode>& NodeClass, const FVector2D& Offset, const bool bPlacedAsGhostNode)
+UFlowGraphNode* UFlowGraphSchema::CreateDefaultNode(UEdGraph& Graph, const TSubclassOf<UFlowNode>& NodeClass, const FVector2f& Offset, const bool bPlacedAsGhostNode)
 {
 	UFlowGraphNode* NewGraphNode = FFlowGraphSchemaAction_NewNode::CreateNode(&Graph, nullptr, NodeClass, Offset);
 	SetNodeMetaData(NewGraphNode, FNodeMetadata::DefaultGraphNode);
@@ -287,142 +274,216 @@ UFlowGraphNode* UFlowGraphSchema::CreateDefaultNode(UEdGraph& Graph, const TSubc
 	return NewGraphNode;
 }
 
-bool UFlowGraphSchema::ArePinsCompatible(const UEdGraphPin* PinA, const UEdGraphPin* PinB, const UClass* CallingContext, bool bIgnoreArray /*= false*/) const
+bool UFlowGraphSchema::ArePinsCompatible(const UEdGraphPin* PinA, const UEdGraphPin* PinB, const UClass* CallingContext, bool bIgnoreArray) const
 {
-	// Adapted from UEdGraphSchema_K2
-	if ((PinA->Direction == EGPD_Input) && (PinB->Direction == EGPD_Output))
-	{
-		return ArePinTypesCompatible(PinB->PinType, PinA->PinType, CallingContext, bIgnoreArray);
-	}
-	else if ((PinB->Direction == EGPD_Input) && (PinA->Direction == EGPD_Output))
-	{
-		return ArePinTypesCompatible(PinA->PinType, PinB->PinType, CallingContext, bIgnoreArray);
-	}
-	else
-	{
-		return false;
-	}
-}
+	// First, pins must be direction-compatible (and we need stable Input/Output ordering).
+	const UEdGraphPin* InputPin = nullptr;
+	const UEdGraphPin* OutputPin = nullptr;
 
-bool UFlowGraphSchema::ArePinCategoriesEffectivelyMatching(const FName& InputPinCategory, const FName& OutputPinCategory, bool bAllowImplicitCasts)
-{
-	if (InputPinCategory == OutputPinCategory)
-	{
-		return true;
-	}
-
-	if (!bAllowImplicitCasts)
+	if (!CategorizePinsByDirection(PinA, PinB, /*out*/ InputPin, /*out*/ OutputPin))
 	{
 		return false;
 	}
 
-	// Must handle pin connectivity for all added EFlowPinTypes
-	FLOW_ASSERT_ENUM_MAX(EFlowPinType, 16);
+	check(InputPin);
+	check(OutputPin);
 
-	// We could extend the compatibility here to accept more implicit conversions (eg, null objects convertible to bools)
-	// but we'd need to also add support the conversion in the Supply/Resolve side as well.
+	const bool bInvolvesReroute =
+		(Cast<UFlowGraphNode_Reroute>(PinA->GetOwningNode()) != nullptr) ||
+		(Cast<UFlowGraphNode_Reroute>(PinB->GetOwningNode()) != nullptr);
 
-	if (FFlowPin::IsBoolPinCategory(InputPinCategory) && FFlowPin::IsConvertableToBoolPinCategory(OutputPinCategory))
+	if (bInvolvesReroute)
 	{
-		return true;
+		// Exec pins remain strict; defer to canonical exec/type logic.
+		const bool bAnyExec =
+			FFlowPin::IsExecPinCategory(InputPin->PinType.PinCategory) ||
+			FFlowPin::IsExecPinCategory(OutputPin->PinType.PinCategory);
+
+		// Data pins: allow any type when a reroute is involved (reroute will adapt after connection).
+		if (!bAnyExec)
+		{
+			return true;
+		}
 	}
 
-	if (FFlowPin::IsIntPinCategory(InputPinCategory) && FFlowPin::IsConvertableToIntPinCategory(OutputPinCategory))
-	{
-		return true;
-	}
-
-	if (FFlowPin::IsFloatPinCategory(InputPinCategory) && FFlowPin::IsConvertableToFloatPinCategory(OutputPinCategory))
-	{
-		return true;
-	}
-
-	if (FFlowPin::IsEnumPinCategory(InputPinCategory) && FFlowPin::IsConvertableToEnumPinCategory(OutputPinCategory))
-	{
-		return true;
-	}
-
-	if (FFlowPin::IsTextPinCategory(InputPinCategory) && FFlowPin::IsConvertableToTextPinCategory(OutputPinCategory))
-	{
-		return true;
-	}
-
-	if (FFlowPin::IsObjectPinCategory(InputPinCategory) && FFlowPin::IsConvertableToObjectPinCategory(OutputPinCategory))
-	{
-		return true;
-	}
-
-	if (FFlowPin::IsClassPinCategory(InputPinCategory) && FFlowPin::IsConvertableToClassPinCategory(OutputPinCategory))
-	{
-		return true;
-	}
-
-	if (FFlowPin::IsStructPinCategory(InputPinCategory) && FFlowPin::IsConvertableToStructPinCategory(OutputPinCategory))
-	{
-		return true;
-	}
-
-	return false;
+	return ArePinTypesCompatible(*OutputPin, *InputPin, CallingContext, bIgnoreArray);
 }
 
-bool UFlowGraphSchema::ArePinTypesCompatible(const FEdGraphPinType& Output, const FEdGraphPinType& Input, const UClass* CallingContext, bool bIgnoreArray /*= false*/) const
+bool UFlowGraphSchema::ArePinTypesCompatible(
+	const UEdGraphPin& OutputPin,
+	const UEdGraphPin& InputPin,
+	const UClass* CallingContext,
+	bool bIgnoreArray) const
 {
-	// NOTE - Adapted from UEdGraphSchema_K2::ArePinTypesCompatible()
+	const FEdGraphPinType& InputPinType = InputPin.PinType;
+	const FEdGraphPinType& OutputPinType = OutputPin.PinType;
+	const bool bIsInputExecPin = FFlowPin::IsExecPinCategory(InputPinType.PinCategory);
+	const bool bIsOutputExecPin = FFlowPin::IsExecPinCategory(OutputPinType.PinCategory);
+	if (bIsInputExecPin || bIsOutputExecPin)
+	{
+		// Exec pins must match exactly (exec ↔ exec only).
+		return (bIsInputExecPin && bIsOutputExecPin);
+	}
+
+	const UFlowAsset* FlowAsset = GetFlowAssetForPin(OutputPin);
+	if (!IsValid(FlowAsset))
+	{
+		UE_LOG(LogFlowEditor, Error, TEXT("Could not find the FlowAsset when trying to check ArePinTypesCompatible!"));
+		return false;
+	}
+
+	// Get the PinConnectionPolicy from the FlowAsset
+	const FFlowPinConnectionPolicy& PinConnectionPolicy = FlowAsset->GetPinConnectionPolicy();
+	if (!PinConnectionPolicy.CanConnectPinTypeNames(OutputPinType.PinCategory, InputPinType.PinCategory))
+	{
+		// Type-name based check failed
+		return false;
+	}
+
+	const FFlowPinTypeMatchPolicy* FoundPinTypeMatchPolicy = PinConnectionPolicy.TryFindPinTypeMatchPolicy(InputPinType.PinCategory);
+	checkf(FoundPinTypeMatchPolicy, TEXT("Should fail CanConnectPinTypeNames, if no MatchPolicy"));
+
+	// RequirePinCategoryMemberReference
+	const bool bRequirePinCategoryMemberReferenceMatch =
+		EnumHasAnyFlags(FoundPinTypeMatchPolicy->PinTypeMatchRules, EFlowPinTypeMatchRules::RequirePinCategoryMemberReferenceMatch);
+
+	if (bRequirePinCategoryMemberReferenceMatch &&
+		OutputPinType.PinSubCategoryMemberReference != InputPinType.PinSubCategoryMemberReference)
+	{
+		// Pin category member reference mismatch.
+		return false;
+	}
+
+	// Container type (Single/Array, etc.)
+	const bool bRequireContainerTypeMatch =
+		EnumHasAnyFlags(FoundPinTypeMatchPolicy->PinTypeMatchRules, EFlowPinTypeMatchRules::RequireContainerTypeMatch);
+
+	if (bRequireContainerTypeMatch && OutputPinType.ContainerType != InputPinType.ContainerType)
+	{
+		const bool bIsAnyArray =
+			OutputPinType.ContainerType == EPinContainerType::Array ||
+			InputPinType.ContainerType == EPinContainerType::Array;
+
+		if (!bIgnoreArray || !bIsAnyArray)
+		{
+			// Mismatched container type (and array mismatch is not being ignored).
+			return false;
+		}
+	}
+
+	const bool bRequirePinSubCategoryObjectMatch =
+		EnumHasAnyFlags(FoundPinTypeMatchPolicy->PinTypeMatchRules, EFlowPinTypeMatchRules::RequirePinSubCategoryObjectMatch);
+
+	if (bRequirePinSubCategoryObjectMatch)
+	{
+		const UStruct* OutputStruct = Cast<UStruct>(OutputPinType.PinSubCategoryObject.Get());
+		const UStruct* InputStruct = Cast<UStruct>(InputPinType.PinSubCategoryObject.Get());
+
+		// ArePinSubCategoryObjectsCompatible() expects to fill an OutConnectionResponse on failure,
+		// but since we only return bool here, we intentionally discard it.
+		FPinConnectionResponse DiscardedResponse;
+		if (!ArePinSubCategoryObjectsCompatible(OutputStruct, InputStruct, *FoundPinTypeMatchPolicy, DiscardedResponse))
+		{
+			// SubCategoryObject types are not compatible per policy.
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool UFlowGraphSchema::ArePinSubCategoryObjectsCompatible(
+	const UStruct* OutputStruct,
+	const UStruct* InputStruct,
+	const FFlowPinTypeMatchPolicy& PinTypeMatchPolicy,
+	FPinConnectionResponse& OutConnectionResponse) const
+{
+	if (!IsValid(InputStruct))
+	{
+		// Assume "InputStruct's SubCategoryObject == null", means any SubCategoryObject is acceptable
+		return true;
+	}
+
+	if (!IsValid(OutputStruct))
+	{
+		// null objects are the norm for many PinCategories, so long as they match
+		return true;
+	}
+
+	// Exact match
+	if (OutputStruct == InputStruct)
+	{
+		return true;
+	}
 
 	using namespace FlowGraphSchema::Private;
-	using namespace UE::Kismet::BlueprintTypeConversions;
 
-	if (ArePinCategoriesEffectivelyMatching(Input.PinCategory, Output.PinCategory))
+	// Only allow a match if the input is a superclass of the output
+	const bool bAllowSubCategoryObjectSubclasses = EnumHasAnyFlags(PinTypeMatchPolicy.PinTypeMatchRules, EFlowPinTypeMatchRules::AllowSubCategoryObjectSubclasses);
+	if (bAllowSubCategoryObjectSubclasses && IsAuthoritativeChildOf(OutputStruct, InputStruct))
 	{
-		const UScriptStruct* OutputStruct = Cast<UScriptStruct>(Output.PinSubCategoryObject.Get());
-		const UScriptStruct* InputStruct = Cast<UScriptStruct>(Input.PinSubCategoryObject.Get());
-		if (OutputStruct != InputStruct)
+		return true;
+	}
+
+	UClass const* OutputClass = Cast<const UClass>(OutputStruct);
+	UClass const* InputClass = Cast<const UClass>(InputStruct);
+
+	// Class specifics
+	if (IsValid(InputClass) && IsValid(OutputClass))
+	{
+		// Only allow a match if the input is a superclass of the output
+		if (bAllowSubCategoryObjectSubclasses && ExtendedIsChildOf(OutputClass, InputClass))
+		{
+			return true;
+		}
+
+		OutConnectionResponse = 
+			FPinConnectionResponse(
+				CONNECT_RESPONSE_DISALLOW, 
+				FString::Printf(
+					TEXT("Output %s must be subclass of input %s"), 
+					*OutputClass->GetName(),
+					*InputClass->GetName()));
+
+		return false;
+	}
+
+	if (!IsValid(InputClass) && !IsValid(OutputClass))
+	{
+		const bool bAllowSubCategoryObjectSameLayout = EnumHasAnyFlags(PinTypeMatchPolicy.PinTypeMatchRules, EFlowPinTypeMatchRules::AllowSubCategoryObjectSameLayout);
+		const bool bSameLayoutMustMatchPropertyNames = EnumHasAnyFlags(PinTypeMatchPolicy.PinTypeMatchRules, EFlowPinTypeMatchRules::SameLayoutMustMatchPropertyNames);
+		
+		// Allow structs with the same layout
+		if (bAllowSubCategoryObjectSameLayout
+			&& FStructUtils::TheSameLayout(OutputStruct, InputStruct, bSameLayoutMustMatchPropertyNames))
+		{
+			return true;
+		}
+
+		using namespace UE::Kismet::BlueprintTypeConversions;
+
+		// Allow convertable ScriptStructs
+		const UScriptStruct* InputScriptStruct = Cast<UScriptStruct>(InputStruct);
+		const UScriptStruct* OutputScriptStruct = Cast<UScriptStruct>(OutputStruct);
+		if (IsValid(InputScriptStruct) && IsValid(OutputScriptStruct))
 		{
 			const bool bAreConvertibleStructs =
-				FStructConversionTable::Get().GetConversionFunction(OutputStruct, InputStruct).IsSet();
+				FStructConversionTable::Get().GetConversionFunction(OutputScriptStruct, InputScriptStruct).IsSet();
 
 			if (bAreConvertibleStructs)
 			{
 				return true;
 			}
 		}
-
-		if ((Output.PinSubCategory == Input.PinSubCategory)
-			&& (Output.PinSubCategoryObject == Input.PinSubCategoryObject)
-			&& (Output.PinSubCategoryMemberReference == Input.PinSubCategoryMemberReference))
-		{
-			// If the sub-category also matches exactly, then the pins are compatible
-			return true;
-		}
-		
-		if ((Output.PinCategory == FFlowPin::PC_Object) || (Output.PinCategory == FFlowPin::PC_Struct) || (Output.PinCategory == FFlowPin::PC_Class))
-		{
-			// Subcategory mismatch, but the two could be castable
-			// Only allow a match if the input is a superclass of the output
-
-			UStruct const* OutputObject = (Output.PinSubCategory == UEdGraphSchema_K2::PSC_Self) ? CallingContext : Cast<UStruct>(Output.PinSubCategoryObject.Get());
-			UStruct const* InputObject = (Input.PinSubCategory == UEdGraphSchema_K2::PSC_Self) ? CallingContext : Cast<UStruct>(Input.PinSubCategoryObject.Get());
-
-			if (OutputObject && InputObject)
-			{
-				if (Output.PinCategory == FFlowPin::PC_Struct)
-				{
-					return OutputObject->IsChildOf(InputObject) && FStructUtils::TheSameLayout(OutputObject, InputObject);
-				}
-
-				UClass const* OutputClass = Cast<const UClass>(OutputObject);
-				UClass const* InputClass = Cast<const UClass>(InputObject);
-
-				return 
-					(IsAuthoritativeChildOf(OutputObject, InputObject) || 
-					(OutputClass && InputClass && ExtendedIsChildOf(OutputClass, InputClass)));
-			}
-
-			return false;
-		}
-		
-		return false;
 	}
+
+	OutConnectionResponse =
+		FPinConnectionResponse(
+			CONNECT_RESPONSE_DISALLOW,
+			FString::Printf(
+				TEXT("Output %s is not compatible with input %s"),
+				*OutputStruct->GetName(),
+				*InputStruct->GetName()));
 
 	return false;
 }
@@ -450,12 +511,12 @@ const FPinConnectionResponse UFlowGraphSchema::CanCreateConnection(const UEdGrap
 
 	FString NodeResponseMessage;
 
-	// node can disallow the connection
-	if (OwningNodeA && OwningNodeA->IsConnectionDisallowed(PinA, PinB, NodeResponseMessage))
+	// Node can disallow the connection
+	if (OwningNodeA->IsConnectionDisallowed(PinA, PinB, NodeResponseMessage))
 	{
 		return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, NodeResponseMessage);
 	}
-	if (OwningNodeB && OwningNodeB->IsConnectionDisallowed(PinB, PinA, NodeResponseMessage))
+	if (OwningNodeB->IsConnectionDisallowed(PinB, PinA, NodeResponseMessage))
 	{
 		return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, NodeResponseMessage);
 	}
@@ -472,19 +533,16 @@ const FPinConnectionResponse UFlowGraphSchema::CanCreateConnection(const UEdGrap
 	check(InputPin);
 	check(OutputPin);
 
-	// Use the owning flow node's class as the CallingContext
-	constexpr bool bIgnoreArray = false;
-	UClass* CallingContext = nullptr;
-	if (OwningNodeA)
+	// Use the owning flow node's *template* class as the CallingContext.
+	// (Avoid GetFlowNodeBase() here: it may return inspected PIE instances.)
+	const UClass* CallingContext = nullptr;
+	if (const UFlowNodeBase* NodeTemplate = OwningNodeA->GetNodeTemplate())
 	{
-		UFlowNodeBase* FlowNodeBase = OwningNodeA->GetFlowNodeBase();
-		if (FlowNodeBase)
-		{
-			CallingContext = FlowNodeBase->GetClass();
-		}
+		CallingContext = NodeTemplate->GetClass();
 	}
 
 	// Compare the pin types
+	constexpr bool bIgnoreArray = false;
 	const bool bArePinsCompatible = ArePinsCompatible(OutputPin, InputPin, CallingContext, bIgnoreArray);
 	if (!bArePinsCompatible)
 	{
@@ -498,13 +556,20 @@ const FPinConnectionResponse UFlowGraphSchema::CanCreateConnection(const UEdGrap
 	}
 	else if (!NodeResponseMessage.IsEmpty())
 	{
-		ConnectionResponse.Message = FText::Format(LOCTEXT("MultiMsgConnectionResponse", "{0} - {1}"), ConnectionResponse.Message, FText::FromString(NodeResponseMessage));
+		ConnectionResponse.Message = FText::Format(
+			LOCTEXT("MultiMsgConnectionResponse", "{0} - {1}"),
+			ConnectionResponse.Message,
+			FText::FromString(NodeResponseMessage));
 	}
 
 	return ConnectionResponse;
 }
 
-const FPinConnectionResponse UFlowGraphSchema::DetermineConnectionResponseOfCompatibleTypedPins(const UEdGraphPin* PinA, const UEdGraphPin* PinB, const UEdGraphPin* InputPin, const UEdGraphPin* OutputPin) const
+const FPinConnectionResponse UFlowGraphSchema::DetermineConnectionResponseOfCompatibleTypedPins(
+	const UEdGraphPin* PinA,
+	const UEdGraphPin* PinB,
+	const UEdGraphPin* InputPin,
+	const UEdGraphPin* OutputPin) const
 {
 	const bool bIsExistingConnection = PinA->LinkedTo.Contains(PinB);
 	if (bIsExistingConnection)
@@ -515,18 +580,29 @@ const FPinConnectionResponse UFlowGraphSchema::DetermineConnectionResponseOfComp
 
 	checkf(!PinB->LinkedTo.Contains(PinA), TEXT("This should be caught with the bIsExistingConnection test above"));
 
+	const bool bInvolvesReroute =
+		(Cast<UFlowGraphNode_Reroute>(PinA->GetOwningNode()) != nullptr) ||
+		(Cast<UFlowGraphNode_Reroute>(PinB->GetOwningNode()) != nullptr);
+
 	// Break existing connections on outputs for Exec Pins
-	if (FFlowPin::IsExecPinCategory(InputPin->PinType.PinCategory) && OutputPin->LinkedTo.Num() > 0)
+	const bool bIsExecPin = FFlowPin::IsExecPinCategory(InputPin->PinType.PinCategory);
+	if (bIsExecPin && OutputPin->LinkedTo.Num() > 0)
 	{
-		const ECanCreateConnectionResponse ReplyBreakInputs = (OutputPin == PinA ? CONNECT_RESPONSE_BREAK_OTHERS_A : CONNECT_RESPONSE_BREAK_OTHERS_B);
-		return FPinConnectionResponse(ReplyBreakInputs, TEXT("Replace existing exec connection"));
+		const ECanCreateConnectionResponse ReplyBreakOutputs =
+			(OutputPin == PinA ? CONNECT_RESPONSE_BREAK_OTHERS_A : CONNECT_RESPONSE_BREAK_OTHERS_B);
+
+		return FPinConnectionResponse(ReplyBreakOutputs, TEXT("Replace existing exec connection"));
 	}
 
 	// Break existing connections on inputs for Data Pins
-	if (FFlowPin::IsDataPinCategory(InputPin->PinType.PinCategory) && InputPin->LinkedTo.Num() > 0)
+	if (!bIsExecPin && InputPin->LinkedTo.Num() > 0)
 	{
-		const ECanCreateConnectionResponse ReplyBreakInputs = (InputPin == PinA ? CONNECT_RESPONSE_BREAK_OTHERS_A : CONNECT_RESPONSE_BREAK_OTHERS_B);
-		return FPinConnectionResponse(ReplyBreakInputs, TEXT("Replace existing data connection"));
+		const ECanCreateConnectionResponse ReplyBreakInputs =
+			(InputPin == PinA ? CONNECT_RESPONSE_BREAK_OTHERS_A : CONNECT_RESPONSE_BREAK_OTHERS_B);
+
+		return FPinConnectionResponse(
+			ReplyBreakInputs,
+			bInvolvesReroute ? TEXT("Replace existing data connection (reroute will adapt)") : TEXT("Replace existing data connection"));
 	}
 
 	return FPinConnectionResponse(CONNECT_RESPONSE_MAKE, TEXT(""));
@@ -535,6 +611,29 @@ const FPinConnectionResponse UFlowGraphSchema::DetermineConnectionResponseOfComp
 bool UFlowGraphSchema::IsPIESimulating()
 {
 	return GEditor->bIsSimulatingInEditor || (GEditor->PlayWorld != nullptr);
+}
+
+const UFlowNodeBase* UFlowGraphSchema::GetFlowNodeBaseForPin(const UEdGraphPin& EdGraphPin)
+{
+	if (const UFlowGraphNode* OwningFlowGraphNode = CastChecked<UFlowGraphNode>(EdGraphPin.GetOwningNode(), ECastCheckedType::NullAllowed))
+	{
+		return OwningFlowGraphNode->GetFlowNodeBase();
+	}
+
+	return nullptr;
+}
+
+const UFlowAsset* UFlowGraphSchema::GetFlowAssetForPin(const UEdGraphPin& EdGraphPin)
+{
+	if (const UEdGraphNode* OwningEdGraphNode = EdGraphPin.GetOwningNode())
+	{
+		if (const UFlowGraph* FlowGraph = CastChecked<UFlowGraph>(OwningEdGraphNode->GetGraph(), ECastCheckedType::NullAllowed))
+		{
+			return FlowGraph->GetFlowAsset();
+		}
+	}
+
+	return nullptr;
 }
 
 const FPinConnectionResponse UFlowGraphSchema::CanMergeNodes(const UEdGraphNode* NodeA, const UEdGraphNode* NodeB) const
@@ -556,7 +655,7 @@ const FPinConnectionResponse UFlowGraphSchema::CanMergeNodes(const UEdGraphNode*
 	FString ReasonString;
 	if (FlowGraphNodeA && FlowGraphNodeB)
 	{
-		TSet<const UEdGraphNode*> OtherGraphNodes; 
+		const TSet<const UEdGraphNode*> OtherGraphNodes;
 		if (!FlowGraphNodeB->CanAcceptSubNodeAsChild(*FlowGraphNodeA, OtherGraphNodes, &ReasonString))
 		{
 			return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, ReasonString);
@@ -574,20 +673,86 @@ const FPinConnectionResponse UFlowGraphSchema::CanMergeNodes(const UEdGraphNode*
 
 bool UFlowGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGraphPin* PinB) const
 {
-	bool bModified = UEdGraphSchema::TryCreateConnection(PinA, PinB);
-	
+	const bool bModified = UEdGraphSchema::TryCreateConnection(PinA, PinB);
+
 	if (bModified)
 	{
 		UFlowGraphNode* FlowGraphNodeA = Cast<UFlowGraphNode>(PinA->GetOwningNode());
 		UFlowGraphNode* FlowGraphNodeB = Cast<UFlowGraphNode>(PinB->GetOwningNode());
 
-		UEdGraph* EdGraph = FlowGraphNodeA->GetGraph();
+		UEdGraph* EdGraph = FlowGraphNodeA ? FlowGraphNodeA->GetGraph() : nullptr;
 
-		EdGraph->NotifyNodeChanged(FlowGraphNodeA);
-		EdGraph->NotifyNodeChanged(FlowGraphNodeB);
+		// If either side is a reroute, re-type it based on the "other" pin and break incompatible links.
+		UFlowGraphNode_Reroute* RerouteNode = Cast<UFlowGraphNode_Reroute>(PinA->GetOwningNode());
+		UEdGraphPin* OtherPin = PinB;
+
+		if (!RerouteNode)
+		{
+			RerouteNode = Cast<UFlowGraphNode_Reroute>(PinB->GetOwningNode());
+			OtherPin = PinA;
+		}
+
+		if (RerouteNode)
+		{
+			check(OtherPin);
+
+			RerouteNode->ApplyTypeFromConnectedPin(*OtherPin);
+
+			constexpr bool bForInputPins = true;
+			BreakIncompatibleConnections<bForInputPins>(RerouteNode, RerouteNode->InputPins, *OtherPin);
+
+			constexpr bool bForOutputPins = false;
+			BreakIncompatibleConnections<bForOutputPins>(RerouteNode, RerouteNode->OutputPins, *OtherPin);
+		}
+
+		if (EdGraph)
+		{
+			NotifyNodesChanged(FlowGraphNodeA, FlowGraphNodeB, EdGraph);
+		}
 	}
 
 	return bModified;
+}
+
+template <bool bIsInputPins>
+void UFlowGraphSchema::BreakIncompatibleConnections(UFlowGraphNode_Reroute* RerouteNode, const TArray<UEdGraphPin*>& Pins, const UEdGraphPin& TypeFromPin) const
+{
+	// Helper function to break incompatible connections on a set of pins
+	for (UEdGraphPin* Pin : Pins)
+	{
+		TArray<UEdGraphPin*> ConnectionsToBreak;
+		for (UEdGraphPin* LinkedPin : Pin->LinkedTo)
+		{
+			bool bIsCompatible;
+
+			if constexpr (bIsInputPins)
+			{
+				// LinkedPin (output) to NewType (input)
+				bIsCompatible = ArePinTypesCompatible(*LinkedPin, TypeFromPin, nullptr);
+			}
+			else
+			{
+				// NewType (output) to LinkedPin (input)
+				bIsCompatible = ArePinTypesCompatible(TypeFromPin, *LinkedPin, nullptr);
+			}
+
+			if (!bIsCompatible)
+			{
+				ConnectionsToBreak.Add(LinkedPin);
+			}
+		}
+
+		for (UEdGraphPin* PinToBreak : ConnectionsToBreak)
+		{
+			PinToBreak->BreakLinkTo(Pin);
+		}
+	}
+}
+
+void UFlowGraphSchema::NotifyNodesChanged(UFlowGraphNode* NodeA, UFlowGraphNode* NodeB, UEdGraph* Graph) const
+{
+	Graph->NotifyNodeChanged(NodeA);
+	Graph->NotifyNodeChanged(NodeB);
 }
 
 bool UFlowGraphSchema::ShouldHidePinDefaultValue(UEdGraphPin* Pin) const
@@ -597,77 +762,12 @@ bool UFlowGraphSchema::ShouldHidePinDefaultValue(UEdGraphPin* Pin) const
 
 FLinearColor UFlowGraphSchema::GetPinTypeColor(const FEdGraphPinType& PinType) const
 {
-	// NOTE - Adapted from UEdGraphSchema_K2::GetPinTypeColor()
-	// (because we cannot directly inherit from it, but want the same color language)
-
-	const FName& PinCategory = PinType.PinCategory;
-	const UGraphEditorSettings* Settings = GetDefault<UGraphEditorSettings>();
-
-	if (FFlowPin::IsExecPinCategory(PinCategory))
+	if (const FFlowPinType* FlowPinType = LookupDataPinTypeForPinCategory(PinType.PinCategory))
 	{
-		return Settings->ExecutionPinTypeColor;
-	}
-	else if (PinCategory == FFlowPin::PC_Object)
-	{
-		return Settings->ObjectPinTypeColor;
-	}
-	else if (PinCategory == FFlowPin::PC_Boolean)
-	{
-		return Settings->BooleanPinTypeColor;
-	}
-	else if (PinCategory == FFlowPin::PC_Byte)
-	{
-		return Settings->BytePinTypeColor;
-	}
-	else if (PinCategory == FFlowPin::PC_Int)
-	{
-		return Settings->IntPinTypeColor;
-	}
-	else if (PinCategory == FFlowPin::PC_Int64)
-	{
-		return Settings->Int64PinTypeColor;
-	}
-	else if (PinCategory == FFlowPin::PC_Struct)
-	{
-		if (PinType.PinSubCategoryObject == VectorStruct)
-		{
-			// vector
-			return Settings->VectorPinTypeColor;
-		}
-		else if (PinType.PinSubCategoryObject == RotatorStruct)
-		{
-			// rotator
-			return Settings->RotatorPinTypeColor;
-		}
-		else if (PinType.PinSubCategoryObject == TransformStruct)
-		{
-			// transform
-			return Settings->TransformPinTypeColor;
-		}
-		else
-		{
-			return Settings->StructPinTypeColor;
-		}
-	}
-	else if (PinCategory == FFlowPin::PC_String)
-	{
-		return Settings->StringPinTypeColor;
-	}
-	else if (PinCategory == FFlowPin::PC_Text)
-	{
-		return Settings->TextPinTypeColor;
-	}
-	else if (PinCategory == FFlowPin::PC_Name)
-	{
-		return Settings->NamePinTypeColor;
-	}
-	else if (PinCategory == FFlowPin::PC_Class)
-	{
-		return Settings->ClassPinTypeColor;
+		return FlowPinType->GetPinColor();
 	}
 
-	// Type does not have a defined color!
-	return Settings->DefaultPinTypeColor;
+	return FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
 FText UFlowGraphSchema::GetPinDisplayName(const UEdGraphPin* Pin) const
@@ -753,6 +853,22 @@ bool UFlowGraphSchema::CanShowDataTooltipForPin(const UEdGraphPin& Pin) const
 	return !FFlowPin::IsExecPinCategory(Pin.PinType.PinCategory);
 }
 
+const FFlowPinType* UFlowGraphSchema::LookupDataPinTypeForPinCategory(const FName& PinCategory)
+{
+	UFlowPinSubsystem* PinSubsystem = UFlowPinSubsystem::Get();
+	if (!PinSubsystem)
+	{
+		UE_LOG(LogFlowEditor, Error, TEXT("Could not find the FlowPinSubsystem!"));
+
+		return nullptr;
+	}
+
+	// Flow uses the PinTypeName as the PinCategory for UEdGraphPin purposes
+	const FFlowPinTypeName PinTypeName(PinCategory);
+	const FFlowPinType* PinType = PinSubsystem->FindPinType(PinTypeName);
+	return PinType;
+}
+
 bool UFlowGraphSchema::IsTitleBarPin(const UEdGraphPin& Pin) const
 {
 	return FFlowPin::IsExecPinCategory(Pin.PinType.PinCategory);
@@ -793,15 +909,17 @@ void UFlowGraphSchema::BreakPinLinks(UEdGraphPin& TargetPin, bool bSendsNodeNoti
 	for (UEdGraphPin* OtherPin : CachedLinkedTo)
 	{
 		UFlowGraphNode* OtherOwningFlowGraphNode = Cast<UFlowGraphNode>(OtherPin->GetOwningNodeUnchecked());
-		
-		if (OtherPin->bOrphanedPin)
+		if (IsValid(OtherOwningFlowGraphNode))
 		{
-			// this calls NotifyNodeChanged()
-			 OtherOwningFlowGraphNode->RemoveOrphanedPin(OtherPin);
-		}
-		else if (bSendsNodeNotification)
-		{
-			EdGraph->NotifyNodeChanged(OtherOwningFlowGraphNode);
+			if (OtherPin->bOrphanedPin)
+			{
+				// this calls NotifyNodeChanged()
+				OtherOwningFlowGraphNode->RemoveOrphanedPin(OtherPin);
+			}
+			else if (bSendsNodeNotification)
+			{
+				EdGraph->NotifyNodeChanged(OtherOwningFlowGraphNode);
+			}
 		}
 	}
 }
@@ -816,39 +934,28 @@ TSharedPtr<FEdGraphSchemaAction> UFlowGraphSchema::GetCreateCommentAction() cons
 	return TSharedPtr<FEdGraphSchemaAction>(static_cast<FEdGraphSchemaAction*>(new FFlowGraphSchemaAction_NewComment));
 }
 
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void UFlowGraphSchema::OnPinConnectionDoubleCicked(UEdGraphPin* PinA, UEdGraphPin* PinB, const FVector2D& GraphPosition) const
-{
-	if (!FFlowPin::IsExecPinCategory(PinA->PinType.PinCategory) || !FFlowPin::IsExecPinCategory(PinB->PinType.PinCategory))
-	{
-		// Disallowing Reroute node creation for non-exec connections (until we have a good solution for it)
-
-		return;
-	}
-
-	const FScopedTransaction Transaction(LOCTEXT("CreateFlowRerouteNodeOnWire", "Create Flow Reroute Node"));
-
-	const FVector2D NodeSpacerSize(42.0f, 24.0f);
-	const FVector2D KnotTopLeft = GraphPosition - (NodeSpacerSize * 0.5f);
-
-	UEdGraph* ParentGraph = PinA->GetOwningNode()->GetGraph();
-	UFlowGraphNode* NewReroute = FFlowGraphSchemaAction_NewNode::CreateNode(ParentGraph, nullptr, UFlowNode_Reroute::StaticClass(), KnotTopLeft, false);
-
-	PinA->BreakLinkTo(PinB);
-	PinA->MakeLinkTo((PinA->Direction == EGPD_Output) ? NewReroute->InputPins[0] : NewReroute->OutputPins[0]);
-	PinB->MakeLinkTo((PinB->Direction == EGPD_Output) ? NewReroute->InputPins[0] : NewReroute->OutputPins[0]);
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 6
 void UFlowGraphSchema::OnPinConnectionDoubleCicked(UEdGraphPin* PinA, UEdGraphPin* PinB, const FVector2f& GraphPosition) const
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return OnPinConnectionDoubleCicked(PinA, PinB, FVector2D(GraphPosition));
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	const FScopedTransaction Transaction(LOCTEXT("CreateFlowRerouteNodeOnWire", "Create Flow Reroute Node"));
+
+	const FVector2f NodeSpacerSize(42.0f, 24.0f);
+	const FVector2f KnotTopLeft = GraphPosition - (NodeSpacerSize * 0.5f);
+
+	UEdGraph* ParentGraph = PinA->GetOwningNode()->GetGraph();
+	UFlowGraphNode* NewEdNode = FFlowGraphSchemaAction_NewNode::CreateNode(ParentGraph, nullptr, UFlowNode_Reroute::StaticClass(), KnotTopLeft, false);
+	UFlowGraphNode_Reroute* NewRerouteEdNode = Cast<UFlowGraphNode_Reroute>(NewEdNode);
+
+	if (PinA->Direction == EGPD_Output)
+	{
+		check(PinB->Direction == EGPD_Input && PinA->Direction == EGPD_Output);
+		NewRerouteEdNode->ConfigureRerouteNodeFromPinConnections(*PinB, *PinA);
+	}
+	else
+	{
+		check(PinA->Direction == EGPD_Input && PinB->Direction == EGPD_Output);
+		NewRerouteEdNode->ConfigureRerouteNodeFromPinConnections(*PinA, *PinB);
+	}
 }
-#endif
 
 bool UFlowGraphSchema::IsCacheVisualizationOutOfDate(int32 InVisualizationCacheID) const
 {
@@ -877,7 +984,7 @@ void UFlowGraphSchema::UpdateGeneratedDisplayNames()
 		UpdateGeneratedDisplayName(FlowNodeAddOnClass, true);
 	}
 
-	for (TPair<FName, FAssetData>& AssetData : BlueprintFlowNodes)
+	for (const TPair<FName, FAssetData>& AssetData : BlueprintFlowNodes)
 	{
 		if (UBlueprint* Blueprint = Cast<UBlueprint>(AssetData.Value.GetAsset()))
 		{
@@ -886,7 +993,7 @@ void UFlowGraphSchema::UpdateGeneratedDisplayNames()
 		}
 	}
 
-	for (TPair<FName, FAssetData>& AssetData : BlueprintFlowNodeAddOns)
+	for (const TPair<FName, FAssetData>& AssetData : BlueprintFlowNodeAddOns)
 	{
 		if (UBlueprint* Blueprint = Cast<UBlueprint>(AssetData.Value.GetAsset()))
 		{
@@ -934,7 +1041,8 @@ TArray<TSharedPtr<FString>> UFlowGraphSchema::GetFlowNodeCategories()
 	{
 		if (const UFlowNode* DefaultObject = FlowNodeClass->GetDefaultObject<UFlowNode>())
 		{
-			UnsortedCategories.Emplace(DefaultObject->GetNodeCategory());
+			const FString NodeCategoryString = UFlowGraphSettings::GetNodeCategoryForNode(*DefaultObject);
+			UnsortedCategories.Emplace(NodeCategoryString);
 		}
 	}
 
@@ -942,7 +1050,8 @@ TArray<TSharedPtr<FString>> UFlowGraphSchema::GetFlowNodeCategories()
 	{
 		if (const UFlowNodeAddOn* DefaultObject = FlowNodeAddOnClass->GetDefaultObject<UFlowNodeAddOn>())
 		{
-			UnsortedCategories.Emplace(DefaultObject->GetNodeCategory());
+			const FString NodeCategoryString = UFlowGraphSettings::GetNodeCategoryForNode(*DefaultObject);
+			UnsortedCategories.Emplace(NodeCategoryString);
 		}
 	}
 
@@ -1045,23 +1154,63 @@ void UFlowGraphSchema::ApplyNodeOrAddOnFilter(const UFlowAsset* EditedFlowAsset,
 	{
 		return;
 	}
-	
-	UFlowNodeBase* NodeDefaults = FlowNodeClass->GetDefaultObject<UFlowNodeBase>();
-	FilteredNodes.Emplace(NodeDefaults);
+
+	const UFlowGraphSettings* GraphSettings = GetDefault<UFlowGraphSettings>();
+	if (GraphSettings->NodesHiddenFromPalette.Contains(FlowNodeClass))
+	{
+		return;
+	}
+
+	using namespace EFlowGraphPolicyResult_Classifiers;
+
+	UFlowNodeBase* FlowNodeBaseCDO = FlowNodeClass->GetDefaultObject<UFlowNodeBase>();
+	UClass* FlowAssetClass = EditedFlowAsset->GetClass();
+
+	// Crawl up the superclass parentage until we find a strict result, otherwise accept the best tentative result
+	EFlowGraphPolicyResult BestResult = EFlowGraphPolicyResult::TentativeAllowed;
+	while (IsValid(FlowAssetClass) && FlowAssetClass->IsChildOf<UFlowAsset>())
+	{
+		if (const FFlowGraphNodesPolicy* FlowAssetPolicy = GraphSettings->PerAssetSubclassFlowNodePolicies.Find(FSoftClassPath(FlowAssetClass)))
+		{
+			const EFlowGraphPolicyResult PolicyResult = FlowAssetPolicy->IsNodeAllowedByPolicy(FlowNodeBaseCDO);
+
+			// Choose the most applicable result for this class
+			BestResult = MergePolicyResult(BestResult, PolicyResult);
+
+			if (IsStrictPolicyResult(BestResult))
+			{
+				// A strict policy stops the crawl up the superclass parentage
+				break;
+			}
+		}
+
+		FlowAssetClass = FlowAssetClass->GetSuperClass();
+	}
+
+	if (IsAnyAllowedPolicyResult(BestResult))
+	{
+		FilteredNodes.Emplace(FlowNodeBaseCDO);
+	}
 }
 
 void UFlowGraphSchema::GetFlowNodeActions(FGraphActionMenuBuilder& ActionMenuBuilder, const UFlowAsset* EditedFlowAsset, const FString& CategoryName)
 {
-	TArray<UFlowNodeBase*> FilteredNodes = GetFilteredPlaceableNodesOrAddOns(EditedFlowAsset, NativeFlowNodes, BlueprintFlowNodes);
+	const TArray<UFlowNodeBase*> FilteredNodes = GetFilteredPlaceableNodesOrAddOns(EditedFlowAsset, NativeFlowNodes, BlueprintFlowNodes);
 
-	const UFlowGraphSettings& FlowGraphSettings = *UFlowGraphSettings::Get();
-	for (const UFlowNodeBase* FlowNode : FilteredNodes)
+	const UFlowGraphSettings& GraphSettings = *GetDefault<UFlowGraphSettings>();
+	for (const UFlowNodeBase* FlowNodeBase : FilteredNodes)
 	{
-		if ((CategoryName.IsEmpty() || CategoryName.Equals(FlowNode->GetNodeCategory())) && !FlowGraphSettings.NodesHiddenFromPalette.Contains(FlowNode->GetClass()))
+		// TODO (gtaylor) This should really be integrated into GetFilteredPlaceableNodesOrAddOns, 
+		// but it needs the schema instance, so we need to do a bit more refactoring
+		const FString NodeCategoryString = UFlowGraphSettings::GetNodeCategoryForNode(*FlowNodeBase);
+		const bool bAllowedForSchemaCategory = (CategoryName.IsEmpty() || CategoryName.Equals(NodeCategoryString));
+		if (!bAllowedForSchemaCategory)
 		{
-			TSharedPtr<FFlowGraphSchemaAction_NewNode> NewNodeAction(new FFlowGraphSchemaAction_NewNode(FlowNode, FlowGraphSettings));
-			ActionMenuBuilder.AddAction(NewNodeAction);
+			continue;
 		}
+
+		TSharedPtr<FFlowGraphSchemaAction_NewNode> NewNodeAction(new FFlowGraphSchemaAction_NewNode(FlowNodeBase, GraphSettings));
+		ActionMenuBuilder.AddAction(NewNodeAction);
 	}
 }
 
@@ -1119,10 +1268,11 @@ void UFlowGraphSchema::GetGraphNodeContextActions(FGraphContextMenuBuilder& Cont
 		UFlowGraphNode* OpNode = NewObject<UFlowGraphNode>(Graph, GraphNodeClass);
 		OpNode->NodeInstanceClass = FlowNodeAddOnTemplate->GetClass();
 
+		const FString NodeCategoryString = UFlowGraphSettings::GetNodeCategoryForNode(*FlowNodeBase);
 		TSharedPtr<FFlowSchemaAction_NewSubNode> AddOpAction =
 			FFlowSchemaAction_NewSubNode::AddNewSubNodeAction(
 				ContextMenuBuilder,
-				FText::FromString(FlowNodeBase->GetNodeCategory()),
+				FText::FromString(NodeCategoryString),
 				FlowNodeBase->GetNodeTitle(),
 				FlowNodeBase->GetNodeToolTip());
 

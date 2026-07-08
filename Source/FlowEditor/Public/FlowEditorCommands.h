@@ -1,5 +1,4 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
-
 #pragma once
 
 #include "EdGraph/EdGraphSchema.h"
@@ -18,46 +17,53 @@ public:
 	TSharedPtr<FUICommandInfo> SearchInAsset;
 	TSharedPtr<FUICommandInfo> EditAssetDefaults;
 
-	TSharedPtr<FUICommandInfo> GoToParentInstance;
-
 	virtual void RegisterCommands() override;
 };
 
-/** Generic graph commands for the flow graph */
+/**
+ * Generic graph commands for the flow graph.
+ */
 class FLOWEDITOR_API FFlowGraphCommands : public TCommands<FFlowGraphCommands>
 {
 public:
 	FFlowGraphCommands();
 
-	/** Context Pins */
+	// Context Pins
 	TSharedPtr<FUICommandInfo> ReconstructNode;
 
-	/** Pins */
+	// Pins
 	TSharedPtr<FUICommandInfo> AddInput;
 	TSharedPtr<FUICommandInfo> AddOutput;
 	TSharedPtr<FUICommandInfo> RemovePin;
 
-	/** Breakpoints */
+	// Pin Breakpoints
 	TSharedPtr<FUICommandInfo> AddPinBreakpoint;
 	TSharedPtr<FUICommandInfo> RemovePinBreakpoint;
 	TSharedPtr<FUICommandInfo> EnablePinBreakpoint;
 	TSharedPtr<FUICommandInfo> DisablePinBreakpoint;
 	TSharedPtr<FUICommandInfo> TogglePinBreakpoint;
 
-	/** Execution Override */
+	// Breakpoints
+	TSharedPtr<FUICommandInfo> EnableAllBreakpoints;
+	TSharedPtr<FUICommandInfo> DisableAllBreakpoints;
+	TSharedPtr<FUICommandInfo> RemoveAllBreakpoints;
+
+	// Execution Override
 	TSharedPtr<FUICommandInfo> EnableNode;
 	TSharedPtr<FUICommandInfo> DisableNode;
 	TSharedPtr<FUICommandInfo> SetPassThrough;
 	TSharedPtr<FUICommandInfo> ForcePinActivation;
 
-	/** Jumps */
+	// Jumps
 	TSharedPtr<FUICommandInfo> FocusViewport;
 	TSharedPtr<FUICommandInfo> JumpToNodeDefinition;
 
 	virtual void RegisterCommands() override;
 };
 
-/** Handles spawning nodes by keyboard shortcut */
+/**
+ * Handles spawning nodes by keyboard shortcut.
+ */
 class FLOWEDITOR_API FFlowSpawnNodeCommands : public TCommands<FFlowSpawnNodeCommands>
 {
 public:

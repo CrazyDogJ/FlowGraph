@@ -12,9 +12,8 @@
 
 FName UFlowNode_Timer::INPIN_CompletionTime;
 
-UFlowNode_Timer::UFlowNode_Timer(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
-	, CompletionTime(1.0f)
+UFlowNode_Timer::UFlowNode_Timer()
+	: CompletionTime(1.0f)
 	, StepTime(0.0f)
 	, ResolvedCompletionTime(0.0f)
 	, SumOfSteps(0.0f)
@@ -34,7 +33,7 @@ UFlowNode_Timer::UFlowNode_Timer(const FObjectInitializer& ObjectInitializer)
 	OutputPins.Add(FFlowPin(TEXT("Step")));
 	OutputPins.Add(FFlowPin(TEXT("Skipped")));
 
-	INPIN_CompletionTime = GET_MEMBER_NAME_CHECKED(UFlowNode_Timer, CompletionTime);
+	INPIN_CompletionTime = GET_MEMBER_NAME_CHECKED(ThisClass, CompletionTime);
 }
 
 void UFlowNode_Timer::InitializeInstance()
@@ -107,18 +106,10 @@ void UFlowNode_Timer::Restart()
 float UFlowNode_Timer::ResolveCompletionTime() const
 {
 	// Get the CompletionTime from either the default (property) or the data pin (if connected)
-	FFlowDataPinResult_Float CompletionTimeResult = TryResolveDataPinAsFloat(INPIN_CompletionTime);
+	float ResolvedTime = CompletionTime;
+	const EFlowDataPinResolveResult TimeResult = TryResolveDataPinValue<FFlowPinType_Float>(INPIN_CompletionTime, ResolvedTime);
 
-	if (CompletionTimeResult.Result == EFlowDataPinResolveResult::FailedMissingPin)
-	{
-		// Handle lookup of a UFlowNode_Timer that predated DataPins
-		CompletionTimeResult.Result = EFlowDataPinResolveResult::Success;
-		CompletionTimeResult.Value = CompletionTime;
-	}
-
-	check(CompletionTimeResult.Result == EFlowDataPinResolveResult::Success);
-
-	return static_cast<float>(CompletionTimeResult.Value);
+	return ResolvedTime;
 }
 
 void UFlowNode_Timer::OnStep()

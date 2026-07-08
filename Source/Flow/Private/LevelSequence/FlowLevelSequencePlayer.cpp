@@ -42,7 +42,7 @@ UFlowLevelSequencePlayer* UFlowLevelSequencePlayer::CreateFlowLevelSequencePlaye
 	{
 		// apply Transform Origin
 		// https://dev.epicgames.com/documentation/en-us/unreal-engine/creating-level-sequences-with-dynamic-transforms-in-unreal-engine
-		if (TransformOriginActor->IsValidLowLevel())
+		if (TransformOriginActor)
 		{
 			// moving Level Sequence Actor might allow proper distance-based actor replication in networked games
 			SpawnTransform = TransformOriginActor->GetTransform();
@@ -57,14 +57,14 @@ UFlowLevelSequencePlayer* UFlowLevelSequencePlayer::CreateFlowLevelSequencePlaye
 	Actor->SetPlaybackSettings(Settings);
 	Actor->CameraSettings = CameraSettings;
 
-	// apply Transform Origin to spawned actor
-	if (TransformOriginActor->IsValidLowLevel())
+	// InstanceData is not set to replicate to the clients, 
+	// so the clients will still play the level sequence using the world origin as the sequence origin.
+	// Instead of replicating the data, just assume the spawn transform of the level sequence actor is the sequence origin.
+	// The level sequence actor was either spawned at the world origin or at the transform of TransformOriginActor.
+	if (UDefaultLevelSequenceInstanceData* InstanceData = Cast<UDefaultLevelSequenceInstanceData>(Actor->DefaultInstanceData))
 	{
-		if (UDefaultLevelSequenceInstanceData* InstanceData = Cast<UDefaultLevelSequenceInstanceData>(Actor->DefaultInstanceData))
-		{
-			Actor->bOverrideInstanceData = true;
-			InstanceData->TransformOriginActor = TransformOriginActor;
-		}
+		Actor->bOverrideInstanceData = true;
+		InstanceData->TransformOriginActor = Actor;
 	}
 
 	// support networking

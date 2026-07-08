@@ -25,7 +25,7 @@
 /////////////////////////////////////////////////////
 // Flow Node
 
-UEdGraphNode* FFlowGraphSchemaAction_NewNode::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode /* = true*/)
+UEdGraphNode* FFlowGraphSchemaAction_NewNode::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2f& Location, bool bSelectNewNode /* = true*/)
 {
 	// prevent adding new nodes while playing
 	if (GEditor->PlayWorld != nullptr)
@@ -41,7 +41,7 @@ UEdGraphNode* FFlowGraphSchemaAction_NewNode::PerformAction(class UEdGraph* Pare
 	return nullptr;
 }
 
-UFlowGraphNode* FFlowGraphSchemaAction_NewNode::CreateNode(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const UClass* NodeClass, const FVector2D Location, const bool bSelectNewNode /*= true*/)
+UFlowGraphNode* FFlowGraphSchemaAction_NewNode::CreateNode(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const UClass* NodeClass, const FVector2f Location, const bool bSelectNewNode /*= true*/)
 {
 	check(NodeClass);
 
@@ -203,13 +203,8 @@ UFlowGraphNode* FFlowGraphSchemaAction_NewNode::ImportNode(UEdGraph* ParentGraph
 
 FText FFlowGraphSchemaAction_NewNode::GetNodeCategory(const UFlowNodeBase* Node, const UFlowGraphSettings& GraphSettings)
 {
-	const FString* CategoryOverridenByUser = GraphSettings.OverridenNodeCategories.Find(Node->GetClass());
-	if (CategoryOverridenByUser && !CategoryOverridenByUser->IsEmpty())
-	{
-		return FText::FromString(*CategoryOverridenByUser);
-	}
-
-	return FText::FromString(Node->GetNodeCategory());
+	const FString NodeCategoryString = UFlowGraphSettings::GetNodeCategoryForNode(*Node);
+	return FText::FromString(NodeCategoryString);
 }
 
 /////////////////////////////////////////////////////

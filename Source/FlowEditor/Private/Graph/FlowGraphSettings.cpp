@@ -57,8 +57,10 @@ void UFlowGraphSettings::PostInitProperties()
 void UFlowGraphSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
 	
-	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED( UFlowGraphSettings, NodePrefixesToRemove ))
+	if (MemberPropertyName == GET_MEMBER_NAME_CHECKED( UFlowGraphSettings, NodePrefixesToRemove ))
 	{
 		//
 		// We need to sort items in array, because unsorted array can cause only partial prefix removal.
@@ -86,7 +88,7 @@ void UFlowGraphSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 			UFlowGraphSchema::UpdateGeneratedDisplayNames();
 		}
 	}
-	else if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UFlowGraphSettings, NodeDisplayStyles))
+	else if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UFlowGraphSettings, NodeDisplayStyles))
 	{
 		if (FlowArray::TrySortAndRemoveDuplicatesFromArrayInPlace(NodeDisplayStyles))
 		{
@@ -96,6 +98,17 @@ void UFlowGraphSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 			FSlateNotificationManager::Get().AddNotification(Info)->SetCompletionState(SNotificationItem::CS_Fail);
 		}
 	}
+}
+
+FString UFlowGraphSettings::GetNodeCategoryForNode(const UFlowNodeBase& FlowNodeBase)
+{
+	const UFlowGraphSettings* GraphSettings = GetDefault<UFlowGraphSettings>();
+	if (const FString* CategoryOverridenByUser = GraphSettings->OverridenNodeCategories.Find(FlowNodeBase.GetClass()))
+	{
+		return *CategoryOverridenByUser;
+	}
+
+	return FlowNodeBase.GetNodeCategory();
 }
 
 const TMap<FGameplayTag, FFlowNodeDisplayStyleConfig>& UFlowGraphSettings::EnsureNodeDisplayStylesMap()
@@ -122,7 +135,7 @@ const TMap<FGameplayTag, FFlowNodeDisplayStyleConfig>& UFlowGraphSettings::Ensur
 	return NodeDisplayStylesMap;
 }
 
-bool UFlowGraphSettings::TryAddDefaultNodeDisplayStyle(const FFlowNodeDisplayStyleConfig& StyleConfig)
+void UFlowGraphSettings::TryAddDefaultNodeDisplayStyle(const FFlowNodeDisplayStyleConfig& StyleConfig)
 {
 	const int32 FoundIndex = 
 		NodeDisplayStyles.FindLastByPredicate(
@@ -139,13 +152,11 @@ bool UFlowGraphSettings::TryAddDefaultNodeDisplayStyle(const FFlowNodeDisplaySty
 	if (FoundIndex != INDEX_NONE)
 	{
 		// Keep the existing config
-
-		return false;
+		return;
 	}
 
 	NodeDisplayStyles.Add(StyleConfig);
-
-	return true;
+	return;
 }
 
 const FLinearColor* UFlowGraphSettings::LookupNodeTitleColorForNode(const UFlowNodeBase& FlowNodeBase)

@@ -1,17 +1,19 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
-
 #pragma once
 
 #include "FlowNode_CustomEventBase.h"
 #include "FlowNode_CustomInput.generated.h"
 
 /**
- * Triggers output upon activation of Input (matching this EventName) on the SubGraph node containing this graph
+ * Triggers output upon activation of Input (matching this EventName) on the SubGraph node containing this graph.
  */
 UCLASS(NotBlueprintable, meta = (DisplayName = "Custom Input"))
 class FLOW_API UFlowNode_CustomInput : public UFlowNode_CustomEventBase
 {
-	GENERATED_UCLASS_BODY()
+	GENERATED_BODY()
+
+public:
+	UFlowNode_CustomInput();
 
 	friend class UFlowAsset;
 
@@ -23,6 +25,6 @@ public:
 
 #if WITH_EDITOR
 public:
-	virtual FText GetNodeTitle() const override;
+	virtual FText K2_GetNodeTitle_Implementation() const override;
 #endif
 };

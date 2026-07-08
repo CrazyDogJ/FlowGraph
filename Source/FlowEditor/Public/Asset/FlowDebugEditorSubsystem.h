@@ -1,5 +1,4 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
-
 #pragma once
 
 #include "Logging/TokenizedMessage.h"
@@ -24,8 +23,10 @@ public:
 protected:
 	TMap<TWeakObjectPtr<UFlowAsset>, TSharedPtr<class IMessageLogListing>> RuntimeLogs;
 
+	TWeakObjectPtr<UFlowAsset> HaltedOnFlowAssetInstance;
+
 	virtual void OnInstancedTemplateAdded(UFlowAsset* AssetTemplate) override;
-	virtual void OnInstancedTemplateRemoved(UFlowAsset* AssetTemplate) const override;
+	virtual void OnInstancedTemplateRemoved(UFlowAsset* AssetTemplate) override;
 
 	void OnRuntimeMessageAdded(const UFlowAsset* AssetTemplate, const TSharedRef<FTokenizedMessage>& Message) const;
 
@@ -33,5 +34,10 @@ protected:
 	virtual void OnResumePIE(const bool bIsSimulating);
 	virtual void OnEndPIE(const bool bIsSimulating);
 
-	virtual void PauseSession() override;
+	virtual void PauseSession(UFlowAsset& FlowAssetInstance) override;
+	virtual void ResumeSession(UFlowAsset& FlowAssetInstance) override;
+	virtual void StopSession() override;
+	virtual void OnFlowDebuggerStateChanged(EFlowDebuggerState PrevState, EFlowDebuggerState NextState, UFlowAsset* FlowAssetInstance);
+
+	void OnBreakpointHit(const UFlowNode* FlowNode) const;
 };
