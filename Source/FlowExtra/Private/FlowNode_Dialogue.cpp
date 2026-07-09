@@ -7,7 +7,6 @@
 #include "FlowExtraFunctionLibrary.h"
 
 UFlowNode_Dialogue::UFlowNode_Dialogue(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
 {
 	OutputPins = { DefaultOutputPin };
 }

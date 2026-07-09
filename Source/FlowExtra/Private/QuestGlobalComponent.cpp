@@ -8,6 +8,8 @@
 #include "FlowExtraGameplayTags.h"
 #include "FlowNode_QuestFinish.h"
 #include "FlowSubsystem.h"
+#include "Engine/GameInstance.h"
+#include "Engine/World.h"
 #include "Net/UnrealNetwork.h"
 
 void FQuestFlowStateList::PostReplicatedAdd(const TArrayView<int32>& AddedIndices, int32 FinalSize)
@@ -122,7 +124,8 @@ void UQuestGlobalComponent::AcceptQuest(UFlowAsset_Quest* QuestFlow)
 	if (GetOwnerRole() == ROLE_Authority)
 	{
 		const auto Subsystem = GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>();
-		if (Subsystem->StartRootFlow(this, QuestFlow, false))
+		constexpr TScriptInterface<IFlowDataPinValueSupplierInterface> RootFlowParamsAsInterface;
+		if (Subsystem->StartRootFlow(this, QuestFlow, RootFlowParamsAsInterface, false))
 		{
 			auto NewItem = FQuestFlowState(QuestFlow, QFS_Ongoing);
 			const auto Index = QuestFlowStateList.QuestStates.Add(NewItem);

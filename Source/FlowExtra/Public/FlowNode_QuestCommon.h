@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Nodes/FlowNode.h"
-#include "InstancedStruct.h"
 #include "FlowNode_QuestCommon.generated.h"
 
 UENUM(BlueprintType)

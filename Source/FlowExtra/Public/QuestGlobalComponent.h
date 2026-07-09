@@ -8,7 +8,6 @@
 #include "FlowAsset_Quest.h"
 #include "Components/ActorComponent.h"
 #include "Net/Serialization/FastArraySerializer.h"
-#include "InstancedStruct.h"
 #include "QuestGlobalComponent.generated.h"
 
 class UQuestGlobalComponent;

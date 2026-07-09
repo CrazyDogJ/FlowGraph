@@ -6,7 +6,7 @@
 #include "FlowAsset.h"
 
 UFlowNode_NotifySpecificActor::UFlowNode_NotifySpecificActor(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer), bRetroactive(false)
+	: bRetroactive(false)
 {
 #if WITH_EDITOR
 	NodeStyle = EFlowNodeStyle::Condition;
